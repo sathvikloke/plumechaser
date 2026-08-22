@@ -70,7 +70,8 @@ def write_bundle(
     }
     if extra:
         provenance |= extra
-    (bdir / "provenance.json").write_text(json.dumps(provenance, indent=2))
+    (bdir / "provenance.json").write_text(
+        json.dumps(provenance, indent=2, default=str))  # numpy scalars safe
 
     render_dossier(dossier, bdir / "dossier.html")
 
