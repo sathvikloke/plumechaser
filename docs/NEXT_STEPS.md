@@ -9,6 +9,8 @@ execution. Total blocking time: ≈3 hours.
 - [x] ~~marss2l license~~ → **LGPL-3.0** — clean-room path RETIRED
 - [x] ~~Power calculation~~ → champion n_eff=57, branch **FULL**
       (docs/PRE_FREEZE_POWER_ASSESSMENT.md)
+- [x] ~~Detector training~~ → 3 seeds on real Zenodo data, P .904±.045 /
+      R .898±.041 (docs/TRAINING_REPORT.md)
 - [ ] Register: Carbon Mapper portal; confirm GEE/Data Space/CDS approvals
 - [ ] Look up regional fair date → declare Branch X or Y
 - [ ] Email 3 external-reviewer candidates

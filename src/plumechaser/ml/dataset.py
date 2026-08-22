@@ -25,13 +25,23 @@ import numpy as np
 SCENE_SHAPE = (32, 32)
 
 
-def load_scenes(nc_path: str | Path, channel: str = "ch4") -> np.ndarray:
-    """Load (N, 32, 32) CH4 scenes from a Zenodo/SRON NetCDF file."""
+def load_scenes(nc_path: str | Path, channel: str | None = None) -> np.ndarray:
+    """Load (N, 32, 32) CH4 scenes from a Zenodo/SRON NetCDF file.
+
+    ``channel`` defaults to auto-detect ('xch4' in SRON releases, 'ch4'
+    elsewhere). The files also carry 15 context channels (albedo_SWIR,
+    aerosol_optical_thickness_SWIR, windspeed_*, qa_value, ...) used by the
+    SVC features and pass-2 labeling panels.
+    """
     try:
         import xarray as xr
     except ImportError as exc:  # pragma: no cover - env guard
         raise ImportError("install the 'data' extra: pip install plumechaser[data]") from exc
     ds = xr.open_dataset(nc_path)
+    if channel is None:
+        channel = next((c for c in ("xch4", "ch4") if c in ds), None)
+        if channel is None:
+            raise KeyError(f"no xch4/ch4 variable in {Path(nc_path).name}: has {list(ds.data_vars)}")
     if channel not in ds:
         raise KeyError(f"channel '{channel}' not in {Path(nc_path).name}: has {list(ds.data_vars)}")
     arr = ds[channel].values.astype(np.float64)
