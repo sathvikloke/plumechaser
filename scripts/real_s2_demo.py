@@ -123,7 +123,8 @@ def phase_shift(ref: np.ndarray, tgt: np.ndarray) -> tuple[float, float]:
     """Sub-pixel (dy, dx) shifting ``ref`` to best align with ``tgt``."""
     a = np.nan_to_num(_center_crop(tgt) - np.nanmean(_center_crop(tgt)))
     b = np.nan_to_num(_center_crop(ref) - np.nanmean(_center_crop(ref)))
-    a -= a.mean(); b -= b.mean()
+    a -= a.mean()
+    b -= b.mean()
     fa, fb = np.fft.rfft2(a), np.fft.rfft2(b)
     cross = fa * np.conj(fb)
     cross /= np.abs(cross) + 1e-9
