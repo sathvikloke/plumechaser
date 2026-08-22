@@ -1,0 +1,103 @@
+# PlumeChaser default configuration.
+# All thresholds below are pre-registered defaults; the frozen analysis
+# plan (docs/ANALYSIS_PLAN.md) references this file by commit hash.
+
+project:
+  name: plumechaser
+  crs: "EPSG:4326"
+
+basins:
+  korpezhe:
+    role: champion          # primary-endpoint basin
+    bbox: [58.0, 38.5, 60.0, 40.0]   # [lon_min, lat_min, lon_max, lat_max]
+    surface_class: homogeneous_arid
+    elevation_hpa: 1013
+  permian:
+    role: champion
+    bbox: [-103.5, 31.0, -101.5, 33.0]
+    surface_class: heterogeneous
+    elevation_hpa: 950
+  region_c:
+    role: coverage          # excluded from P/R; exploratory context only
+    bbox: [4.0, 30.0, 8.0, 33.5]
+    surface_class: heterogeneous
+    elevation_hpa: 1000
+
+tropomi:
+  collection: "COPERNICUS/S5P/OFFL/L3_CH4"
+  band: "CH4_column_volume_mixing_ratio_dry_air_bias_corrected"
+  qa_band: "qa_value"
+  screening_pixel_size_m: 1113
+  min_qa: 0.5
+  climatology_window_days: 30
+  z_threshold: 3.0            # naive detector operating point (sweep in eval)
+  min_blob_pixels: 3
+  persistence:
+    min_passes: 2             # candidate must persist >=2 passes
+    max_gap_days: 3
+
+sentinel2:
+  collection: "COPERNICUS/S2"
+  bands: { b11: "B11", b12: "B12" }
+  pixel_size_m: 20
+  max_cloud_fraction: 0.05    # reference-pass gate
+  reference:
+    window_before_days: 12
+    window_after_days: 12
+    margin_days: 2            # exclusion zone around target date
+    min_surface_corr: 0.95    # B12 vs 12-month median correlation
+    max_reference_mbsp_sigma: 3.0
+    weights: { cloud: 0.5, corr: 0.3, proximity: 0.2 }
+
+mbmp:
+  # Simplified single-coefficient absorption calibration.
+  # PRODUCTION NOTE: replace alpha with RTM-derived LUT (Varon et al. 2021,
+  # AMT 14, 2771) before quoting absolute rates; see retrieve/mbmp.py docstring.
+  alpha_b12_per_ppb: 1.2e-4   # fractional transmittance change per ppb CH4
+  alpha_b11_per_ppb: 3.0e-5
+  plume_threshold_sigma: 3.0
+  morphological_median_size: 3
+
+ime:
+  ueff_slope: 0.33            # Ueff = slope*U10 + intercept (Varon et al. 2021)
+  ueff_intercept: 0.45
+  mc_samples: 500
+  wind_noise_frac: 0.25       # +/-25% relative wind uncertainty
+  mask_inclusion_prob: 0.9    # per-pixel mask membership uncertainty
+  retrieval_noise_ppb: 15.0   # ~1-sigma column noise over favorable surfaces
+  ci_percentiles: [2.5, 97.5]
+
+winds:
+  provider: era5              # era5 | geos_fp (delta term on Korpezhe)
+  height_m: 10
+
+atlas:
+  k_roc: 3.0                  # sigma multiple for detection threshold
+  typical_plume_length_m:
+    homogeneous_arid: 800
+    heterogeneous: 1200
+
+evaluation:
+  match_radius_km: 25
+  match_window_days: 3
+  cluster_distance_km: 25
+  cluster_window_days: 14
+  bootstrap_draws: 2000
+  random_seed: 20270307
+
+attribution:
+  density_rule_facilities_per_5km: 5
+  sources:
+    epa_flight: ""            # path to exported FLIGHT CSV (user-supplied)
+    gem_trackers: ""
+    osm_energy: ""
+
+ethics:
+  public_coarsening_deg: 0.01
+  public_delay_days: 30
+
+paths:
+  mirrors: data/mirrors
+  manifests: data/manifests
+  outputs: outputs
+  bundles: bundles
