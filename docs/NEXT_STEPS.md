@@ -4,12 +4,14 @@ Design phase is closed (8 audit rounds, ~90 findings). Everything below is
 execution. Total blocking time: ≈3 hours.
 
 ## Session A — unblock everything (<60 min)
-- [ ] Download SRON weekly CSV → `data/mirrors/sron_weekly/` + note schema
-- [ ] Screenshot license field of Zenodo record 13903869 → verdict in lab notebook
-- [ ] Read `marss2l` repo LICENSE → permissive / none? (decides clean-room path)
-- [ ] Register: Carbon Mapper portal; confirm GEE/Data Space/CDS approvals status
-- [ ] Look up regional fair date → declare Branch X or Y (docs/RUNBOOK timeline)
-- [ ] Email 3 external-reviewer candidates (template in chat log / docs)
+- [x] ~~Download SRON weekly CSV~~ → mirrored 2026-08-22, 4,751 events, fp `b8db5cd2`
+- [x] ~~Zenodo license verdict~~ → **CC-BY-4.0**, open
+- [x] ~~marss2l license~~ → **LGPL-3.0** — clean-room path RETIRED
+- [x] ~~Power calculation~~ → champion n_eff=57, branch **FULL**
+      (docs/PRE_FREEZE_POWER_ASSESSMENT.md)
+- [ ] Register: Carbon Mapper portal; confirm GEE/Data Space/CDS approvals
+- [ ] Look up regional fair date → declare Branch X or Y
+- [ ] Email 3 external-reviewer candidates
 
 ## Session B — compliance (45 min)
 - [ ] File research plan + sponsor forms BEFORE any project data runs

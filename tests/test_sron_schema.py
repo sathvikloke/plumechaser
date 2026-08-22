@@ -38,6 +38,28 @@ def test_alias_resolution_and_canonical_columns(tmp_path):
     assert df.loc[0, "id"] == "s1"
 
 
+def test_cams_yyyymmdd_integer_dates_parse(tmp_path):
+    """Live CAMS schema: date column arrives as int64 YYYYMMDD, not ISO."""
+    p = tmp_path / "cams.csv"
+    pd.DataFrame(
+        {
+            "id": ["35155_32_20_2704_160_S5P", "35156_32_20_2336_128_S5P"],
+            "date": [20240726, 20240726],          # ints, as pandas infers them
+            "time_UTC": ["07:34:38", "09:10:59"],
+            "lat": [54.65, 36.44],
+            "lon": [85.79, 61.70],
+            "source_rate_t/h": [40, 20],
+            "uncertainty_t/h": [15, 8],
+            "source_type": ["Coal", "Oil"],
+            "source_country": ["Russian Federation", "Turkmenistan"],
+        }
+    ).to_csv(p, index=False)
+    df = load_weekly_csv(p)
+    assert str(df.loc[0, "date"]) == "2024-07-26"
+    assert df["rate_t_h"].tolist() == [40.0, 20.0]
+    assert set(df["source_type"]) == {"Coal", "Oil"}
+
+
 def test_missing_required_column_raises(tmp_path):
     p = tmp_path / "bad.csv"
     df = pd.DataFrame({"x": [1], "y": [2]})

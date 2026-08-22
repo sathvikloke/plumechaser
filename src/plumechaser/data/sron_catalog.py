@@ -22,8 +22,11 @@ COLUMN_ALIASES = {
     "date": ["date", "observation_date", "time", "day"],
     "lon": ["lon", "longitude", "lon_deg"],
     "lat": ["lat", "latitude", "lat_deg"],
-    "rate_t_h": ["rate_t_h", "flux", "emission_rate", "ch4_flux"],
+    "rate_t_h": ["rate_t_h", "source_rate_t/h", "flux", "emission_rate", "ch4_flux"],
 }
+
+# Optional passthrough columns preserved when present (CAMS weekly schema)
+PASSTHROUGH = {"source_type", "source_country", "uncertainty_t/h"}
 
 
 def _resolve_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -44,7 +47,11 @@ def load_weekly_csv(path: str | Path) -> pd.DataFrame:
     """Parse a SRON/CAMS weekly detections CSV into canonical form."""
     raw = pd.read_csv(path)
     df = _resolve_columns(raw)
-    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    # CAMS ships dates as YYYYMMDD ints; pandas would parse those as epoch ns.
+    date_str = df["date"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+    yyyymmdd = pd.to_datetime(date_str, format="%Y%m%d", errors="coerce")
+    iso = pd.to_datetime(date_str, errors="coerce")
+    df["date"] = yyyymmdd.fillna(iso).dt.date
     df["lon"] = pd.to_numeric(df["lon"], errors="coerce")
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     if "rate_t_h" in df.columns:
@@ -55,7 +62,9 @@ def load_weekly_csv(path: str | Path) -> pd.DataFrame:
     if "id" not in df.columns:
         df["id"] = [f"sron-{i:05d}" for i in range(len(df))]
     df["source"] = "sron_weekly"
-    return df[["id", "date", "lon", "lat", "rate_t_h", "source"]]
+    keep = ["id", "date", "lon", "lat", "rate_t_h", "source"]
+    keep += [c for c in sorted(PASSTHROUGH) if c in df.columns]
+    return df[keep]
 
 
 def download_and_load(

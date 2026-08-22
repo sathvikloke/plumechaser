@@ -98,7 +98,15 @@ Kill dates: Dec 15 autonomy · Feb 1 results tabulated · Mar 1 content freeze.
 
 ## 9. Addenda
 
-*(none — entries appear here only with date + reason)*
+* **2026-08-22 (pre-freeze):** License stack verified — Zenodo 13903869
+  training data **CC-BY-4.0**; `marss2l` **LGPL-3.0** (usable as dependency;
+  clean-room MBMP contingency retired); Orbio Eucalyptus custom
+  non-commercial (fair-compatible). CAMS weekly CSV adopted as the strict-mode
+  reference source (`sites.ecmwf.int/.../data_methane_explorer.csv`, schema
+  fingerprint `b8db5cd2`). Power assessment on real data: champion-set
+  n_eff = 57 → branch FULL (see docs/PRE_FREEZE_POWER_ASSESSMENT.md).
+
+*(entries appear here only with date + reason)*
 
 ## 10. Accepted risks (permanent disclosure)
 
