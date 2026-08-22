@@ -33,6 +33,7 @@ class TropomiCfg:
     collection: str
     band: str
     qa_band: str
+    screening_pixel_size_m: int
     min_qa: float
     climatology_window_days: int
     z_threshold: float
@@ -147,6 +148,7 @@ def load_config(path: str | Path = "config/default.yaml") -> Config:
         collection=t["collection"],
         band=t["band"],
         qa_band=t["qa_band"],
+        screening_pixel_size_m=int(t["screening_pixel_size_m"]),
         min_qa=float(t["min_qa"]),
         climatology_window_days=int(t["climatology_window_days"]),
         z_threshold=float(t["z_threshold"]),
