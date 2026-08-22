@@ -41,7 +41,9 @@ def load_scenes(nc_path: str | Path, channel: str | None = None) -> np.ndarray:
     if channel is None:
         channel = next((c for c in ("xch4", "ch4") if c in ds), None)
         if channel is None:
-            raise KeyError(f"no xch4/ch4 variable in {Path(nc_path).name}: has {list(ds.data_vars)}")
+            raise KeyError(
+                f"no xch4/ch4 variable in {Path(nc_path).name}: has {list(ds.data_vars)}"
+            )
     if channel not in ds:
         raise KeyError(f"channel '{channel}' not in {Path(nc_path).name}: has {list(ds.data_vars)}")
     arr = ds[channel].values.astype(np.float64)
