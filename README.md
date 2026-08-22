@@ -29,7 +29,8 @@ JSONL manifest. That log is the autonomy evidence.
 
 | Component | Method | Reference |
 |---|---|---|
-| Detection training data | SRON labeled TROPOMI scenes (828+/2242−) | [Zenodo 13903869](https://zenodo.org/records/13903869); Schuit et al. 2023, ACP 23, 9071 |
+| Detection stage 1 (CNN) | trained on SRON labeled scenes (828+/2242−) — P .904±.045 / R .898±.041 over 3 seeds | [Zenodo 13903869](https://zenodo.org/records/13903869); Schuit et al. 2023, ACP 23, 9071 |
+| Artifact filter (SVC) | calibrated RBF-SVC on 15 context features, CV F1 .848±.041 | Schuit et al. 2023 §2.2–2.4 (feature set approximated) |
 | MBMP retrieval | multi-band multi-pass log-ratio differencing | Varon et al. 2021, AMT 14, 2771 |
 | Quantification | IME, `Ueff = 0.33·U10 + 0.45` | Frankenberg 2016; Varon 2018/2021 |
 | Detection limits | benchmarked S2 thresholds ~1–2 t/h (homogeneous), >5 t/h (heterogeneous) | Gorroño et al. 2023, AMT 16, 89 |
@@ -88,6 +89,7 @@ synthetic-plume recovery. CI runs lint + tests on Python 3.10 & 3.13.
 
 ## Roadmap
 
+- [x] Two-step detector: CNN + calibrated SVC artifact filter
 - [ ] RTM-derived LUT replacing simplified α coefficients
 - [ ] Carbon Mapper API spot-check tier (EMIT/Tanager)
 - [ ] Landsat fallback tier for cloud-blocked S2 windows

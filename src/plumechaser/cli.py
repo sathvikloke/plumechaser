@@ -30,6 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--out", default="runs/detector")
     t.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
 
+    v = sub.add_parser("train-svc", help="train SVC artifact filter (stage 2)")
+    v.add_argument("--data", default="data/zenodo/SVC_trainingdata.nc")
+    v.add_argument("--out", default="runs/svc")
+    v.add_argument("--seed", type=int, default=0)
+
     s = sub.add_parser("screen", help="run TROPOMI-tier screening for one basin/day")
     s.add_argument("--basin", required=True)
     s.add_argument("--date", required=True)
@@ -69,6 +74,12 @@ def main(argv: list[str] | None = None) -> int:
         results = train_three_seeds(x, y, args.out, seeds=tuple(args.seeds))
         for r in results:
             print(r)
+
+    elif args.cmd == "train-svc":
+        from plumechaser.ml.svc import train_svc
+
+        metrics = train_svc(args.data, args.out, seed=args.seed)
+        print(metrics)
 
     elif args.cmd == "screen":
         from datetime import date as _date
