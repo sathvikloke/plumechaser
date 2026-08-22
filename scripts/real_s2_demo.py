@@ -70,7 +70,7 @@ def gcs_day_safes(mgrs: str, yyyymmdd: str) -> list[str]:
 
 def gcs_band_href(safe: str, mgrs: str, band: str) -> tuple[str, float]:
     """Public URL of one band JP2 plus its radiometric add-offset."""
-    base_url = f"{GCS_PUBLIC}/tiles/{mgrs[:2]}/{mgrs[2]}/{mgrs[3:5]}/{safe}"
+    f"{GCS_PUBLIC}/tiles/{mgrs[:2]}/{mgrs[2]}/{mgrs[3:5]}/{safe}"
     pre = f"tiles/{mgrs[:2]}/{mgrs[2]}/{mgrs[3:5]}/{safe}"
     js = _http_json(GCS_BASE, {"prefix": f"{pre}/GRANULE/", "maxResults": 10})
     gids = {i["name"].split("/GRANULE/")[1].split("/")[0]
@@ -166,8 +166,8 @@ def stac_scenes(lon: float, lat: float, d0: date, d1: date,
 
 def vrt_window(href: str, lon: float, lat: float, half_km: float = 10.0,
                res_m: float = 20.0) -> np.ndarray:
-    from affine import Affine
     import rasterio
+    from affine import Affine
     from rasterio.enums import Resampling
     from rasterio.vrt import WarpedVRT
     from rasterio.warp import transform as warp_transform
@@ -264,7 +264,7 @@ def main(argv=None) -> int:
             raise SystemExit("no same-platform comparison dates before target")
         ref_safes = [avail[d] for d in ref_days_all[:n_refs]]
         print(f"target    : {t_safe} ({t_day}) [{plat}]")
-        for d, s in zip(ref_days_all[:n_refs], ref_safes):
+        for d, s in zip(ref_days_all[:n_refs], ref_safes, strict=False):
             print(f"comparison: {s} ({d})")
 
         def load_pass(safe):
