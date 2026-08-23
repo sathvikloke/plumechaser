@@ -142,7 +142,6 @@ def main(argv=None) -> int:
 
     t_gt, b_gt = gt(tc), gt(bc)
     valid_np = np.ones(t_gt.values.shape[1:], dtype=bool)
-    from georeader.geotensor import GeoTensor
 
     valid_gt = GeoTensor(values=valid_np, transform=transform,
                          crs=str(dst_crs), fill_value_default=False)
