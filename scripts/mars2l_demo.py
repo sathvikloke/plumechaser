@@ -56,7 +56,7 @@ def pick_pair(items, event_date):
 
 
 def main(argv=None) -> int:
-    from real_s2_demo import vrt_window, gcs_day_safes, gcs_band_href
+    from real_s2_demo import gcs_band_href, gcs_day_safes, vrt_window
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--lon", type=float, required=True)
@@ -122,9 +122,9 @@ def main(argv=None) -> int:
     bc = load_bands(b_safe)
 
     # ---- GeoTensors -------------------------------------------------------
-    from georeader.geotensor import GeoTensor
-    from affine import Affine
     import rasterio
+    from affine import Affine
+    from georeader.geotensor import GeoTensor
     from rasterio.warp import transform as warp_transform
 
     href0, _ = gcs_band_href(t_safe, mgrs, "B11")
@@ -142,9 +142,10 @@ def main(argv=None) -> int:
 
     t_gt, b_gt = gt(tc), gt(bc)
     valid_np = np.ones(t_gt.values.shape[1:], dtype=bool)
-    from georeader.geotensor import GeoTensor as _GT
-    valid_gt = _GT(values=valid_np, transform=transform, crs=str(dst_crs),
-                   fill_value_default=False)
+    from georeader.geotensor import GeoTensor
+
+    valid_gt = GeoTensor(values=valid_np, transform=transform,
+                         crs=str(dst_crs), fill_value_default=False)
 
     # ---- winds ------------------------------------------------------------
     from plumechaser.data.openmeteo import openmeteo_winds
@@ -174,9 +175,9 @@ def main(argv=None) -> int:
           f"MAD-sigma {np.std(finite_ratio):.4f}")
 
     # ---- MARS-S2L segmentation model --------------------------------------
+    from marss2l.loaders import BANDS_S2_IN_L8
     from marss2l.mars_sentinel2 import plume_detection_model as pdm
     from marss2l.mars_sentinel2.s2lutils import get_channels_to_pred
-    from marss2l.loaders import BANDS_S2_IN_L8
 
     model = pdm.load_model(model_name="MARS-S2L")
     img_pred = get_channels_to_pred(t_gt, channels=BANDS,
@@ -198,8 +199,8 @@ def main(argv=None) -> int:
     ch4_out = None
     if is_plume:
         from marss2l.mars_sentinel2 import mixing_ratio_methane as mm2
-        from marss2l.mars_sentinel2 import transmittance_to_ch4 as ttc
         from marss2l.mars_sentinel2 import quantification as qmod
+        from marss2l.mars_sentinel2 import transmittance_to_ch4 as ttc
 
         mbmp_q = mm2.ratio_IL(
             t_gt, b_gt,
@@ -283,7 +284,7 @@ def main(argv=None) -> int:
         med = np.nanmedian(ch4_out)
         im1 = axes[1].imshow(np.nan_to_num(ch4_out, nan=med), cmap="plasma",
                              vmin=0, vmax=max(1500.0, np.nanpercentile(ch4_out, 99)))
-        axes[1].set_title(f"dXCH4 ppb — Q vs catalog")
+        axes[1].set_title("dXCH4 ppb — Q vs catalog")
         plt.colorbar(im1, ax=axes[1], fraction=0.04)
     else:
         axes[1].imshow(bm.astype(float), cmap="gray")
