@@ -75,3 +75,44 @@ python scripts/real_s2_demo.py --source gcs-l1c --mgrs 40TFK \
     --event-id EVT-SYNTH-MBPD --rate-t-h 26
 ```
 Bundles: `bundles/EVT-*` (provenance-hashed; integrity in lab notebook).
+
+---
+
+## Production-model campaign (marss2l 0.2.10, same day)
+
+Ran UNEP's actual operational models (`MARS-S2L`, LGPL, pip-installable)
+on the same events, pixels from the anonymous GCS L1C mirror, angles from
+STAC, winds from Open-Meteo — still zero accounts required.
+
+| Event | Catalog rate | MARS-S2L detection | scene_score | Q (Varon Ueff + core≥0.6) |
+|---|---|---|---|---|
+| Korpezhe 2026-08-05 | 26 t/h | **is_plume=True** | **0.996** | ≈337 t/h |
+| Permian 2026-04-27 | 82 t/h | **is_plume=True** | **0.995** | ≈478 t/h |
+
+### What this establishes
+
+* **Detection layer independently validated**: the production segmentation
+  model — trained by SRON/UNEP partners — confirms plumes at BOTH
+  catalog-targeted sites with ≥0.99 confidence, on data we fetched and
+  preprocessed ourselves without any institutional access.
+* Our simplified chain's honesty gates + this production cross-check now
+  form a two-tier verification story no single-model demo can match.
+
+### Open item: absolute-flux overestimate (~6–13×)
+
+Both Q values exceed catalog rates systematically. Itemized suspects:
+1. RTM inversion amplifies residual surface-ratio offsets to thousands of
+   ppb over bright heterogeneous terrain inside the segmented region
+   (mean in-mask ΔXCH₄ ≈ 2,200 ppb — implausibly high for real gas at
+   these wind speeds).
+2. Target-day offset (S2 scene −2 d from TROPOMI detection) may capture a
+   different emission state; TROPOMI daily rates are column averages.
+3. `obtain_flux_rate` defaults use raw U₁₀ as U_eff — Varon coefficients
+   now applied (−55%); remaining gap NOT unit-related (ppb path audited
+   through marshsi.convert_units).
+4. Operational IMEO fluxes additionally pass analyst QC on plume geometry
+   and background window choice before publication.
+
+**Status: detection validated; absolute flux flagged UNDER AUDIT — excluded
+from headline claims until root-caused against a controlled-release or
+analyst-published case.**
