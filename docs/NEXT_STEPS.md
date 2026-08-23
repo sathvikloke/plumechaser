@@ -31,6 +31,16 @@ execution. Total blocking time: ≈3 hours.
 - [ ] Family decision: $60 application fee + $600/participant contingency
 - [ ] Passport validity ≥ Dec 2027 check
 
+## Already done (do not redo)
+- [x] Repo live: github.com/sathvikloke/plumechaser (CI green, 70 tests)
+- [x] CAMS catalog mirrored (4,751 events); licenses verified
+- [x] Power branch = FULL (n_eff 57); CNN + SVC trained on real SRON data
+- [x] Real S2 campaigns: our chain (gates held) + marss2l production
+      detections at BOTH targets (.995/.996) — see
+      docs/S2_REAL_DATA_FINDINGS.md
+- [x] OPEN ITEM: absolute-flux overestimate (~6-13x) under audit — do not
+      quote absolute rates until resolved
+
 ## Then: phase gates
 | Gate | Date | Deliverable |
 |---|---|---|

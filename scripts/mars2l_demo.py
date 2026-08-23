@@ -160,8 +160,6 @@ def main(argv=None) -> int:
     # ---- MBMP ratio (their implementation, with normalize+coregister) -----
     from marss2l.mars_sentinel2 import mixing_ratio_methane as mm
 
-    print('DEBUG shapes: t_gt', t_gt.shape, 'b_gt', b_gt.shape,
-          'valid', valid_gt.values.shape)
     mbmp = mm.ratio_IL(
         t_gt, b_gt,
         b12_index=BANDS.index("B12"), b11_index=BANDS.index("B11"),
@@ -196,6 +194,7 @@ def main(argv=None) -> int:
 
     # ---- quantification ---------------------------------------------------
     ch4_out = None
+    qout = None
     if is_plume:
         from marss2l.mars_sentinel2 import mixing_ratio_methane as mm2
         from marss2l.mars_sentinel2 import quantification as qmod
@@ -265,9 +264,9 @@ def main(argv=None) -> int:
     )
     bdir = write_bundle(d, REPO / "bundles", extra={
         "is_plume": bool(is_plume), "scene_score": float(scene_score),
-        "plume_px": int(bm.sum()), "q_output":
-            ({k: (round(v, 2) if isinstance(v, float) else v)
-              for k, v in qout.items()} if is_plume and 'qout' in dir() else None),
+        "plume_px": int(bm.sum()),
+        "q_output": ({k: (round(v, 2) if isinstance(v, float) else v)
+                      for k, v in qout.items()} if qout else None),
     })
 
     import matplotlib

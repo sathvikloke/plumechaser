@@ -103,3 +103,22 @@ the fair floor, offline laptop + USB copies + printed fallback pack.
 3. Deposit `docs/ANALYSIS_PLAN.md` + `config/default.yaml` + lock file to
    Zenodo (restricted access), record DOI in lab notebook.
 4. From this moment: catalog files are read only inside step 7.
+
+## 10. Real-data campaign scripts (no accounts needed)
+
+Two Python environments exist:
+* `.venv/` — the plumechaser package itself (`pip install -e ".[dev,data]"`)
+* `.venv-mars/` — UNEP's production package: `pip install marss2l`
+  (LGPL; pulls torch/segmentation-models; ~1 GB)
+
+| Script | Purpose | Env |
+|---|---|---|
+| `scripts/power_assessment.py` | branch assignment from mirrored catalog | .venv |
+| `scripts/real_s2_demo.py` | our simplified MBMP chain on real S2 pixels (GCS L1C / AWS L2A), honesty gates, Gate-B injection | .venv |
+| `scripts/mars2l_demo.py` | UNEP MARS-S2L production inference on same events (detection + flux; flux UNDER AUDIT) | .venv-mars |
+| `scripts/make_figures.py` | paper figures from real data | .venv |
+| `scripts/freeze.py` | freeze ceremony (dry-run first!) | .venv |
+| `scripts/smoke_check.py` | 10-second synthetic sanity run | .venv |
+
+Campaign findings + open flux-audit items:
+`docs/S2_REAL_DATA_FINDINGS.md` (read before quoting any rate).
