@@ -10,6 +10,25 @@ target event WITHOUT Google Earth Engine:
 
     python scripts/mars2l_demo.py --lon 58.52 --lat 39.68 \
         --date 2026-08-05 --basin korpezhe --rate-t-h 26
+
+Input conventions that this script must honour (each one burned us once)
+-----------------------------------------------------------------------
+1. **DN scale.** ``plume_detection_model.predict`` documents its inputs as
+   "TOA reflectances multiplied by 10000", and the loaded MARS-S2L model has
+   ``norm_data=False``, i.e. it normalises by dividing by 5000. Handing it
+   0-1 reflectance shrinks every radiance channel by 1e4, leaving the network
+   with an effectively constant image. The band-ratio (MBMP) channel is
+   scale-invariant and survives, so the model still returns confident output
+   -- it is just output produced without any radiance context, which is
+   exactly the context needed to reject surface artifacts.
+2. **Same-platform background.** S2A and S2B SWIR calibration differs and
+   does not cancel in a B12/B11 ratio. Same platform also means the same
+   relative orbit at exact 10-day multiples, which additionally cancels BRDF.
+3. **Real valid mask.** Nodata pixels become negative DN once the baseline
+   >= 05 offset (-1000) is applied; they must be excluded, not fed in as
+   valid dark ground.
+4. **Honesty gates apply here too.** A production model is not exempt from
+   the withhold rule (analysis plan section 7).
 """
 
 from __future__ import annotations
@@ -28,6 +47,10 @@ sys.path.insert(0, str(REPO / "src"))
 
 STAC_URL = "https://earth-search.aws.element84.com/v1/search"
 BANDS = ["B02", "B03", "B04", "B08", "B11", "B12"]
+# CloudSEN12 (UNetMobV2_V2, bundled with marss2l) needs the full L1C stack.
+ALL_L1C_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
+                 "B8A", "B09", "B10", "B11", "B12"]
+CLOUDY_CLASSES = (1, 2, 3)  # thick cloud, thin cloud, cloud shadow
 RES_M = 20.0
 
 
@@ -67,12 +90,18 @@ def main(argv=None) -> int:
     ap.add_argument("--mgrs", default=None)
     ap.add_argument("--half-km", type=float, default=8.0)
     ap.add_argument("--event-id", default=None)
-    ap.add_argument("--varon-ueff", action="store_true",
-                    help="use Varon 2020 Ueff=0.33*U10+0.45 (matches S2 literature)")
+    ap.add_argument("--raw-u10-ueff", action="store_true",
+                    help="use raw U10 as Ueff (marss2l default a=1,b=0); the "
+                         "script otherwise uses the config Varon coefficients")
     ap.add_argument("--core-threshold", type=float, default=None,
                     help="restrict flux IME to continuous_pred > threshold")
+    ap.add_argument("--no-cloud-mask", action="store_true",
+                    help="skip CloudSEN12 screening (faster: 6 bands not 13)")
     args = ap.parse_args(argv)
 
+    from plumechaser.config import load_config
+
+    cfg = load_config(REPO / "config" / "default.yaml")
     event_date = date.fromisoformat(args.date)
 
     # ---- discovery via STAC (gives dates + cloud + angles) ----------------
@@ -89,50 +118,161 @@ def main(argv=None) -> int:
     sat = "S2A" if t_item["id"].startswith("S2A") else "S2B"
     print(f"tile {mgrs} | target {t_item['id']} ({t_date}, "
           f"cloud {props_t['eo:cloud_cover']:.2f}%)")
-    print(f"background {b_item['id']} ({b_date}) | SZA={sza:.1f} VZA={vza:.1f}")
+    print(f"STAC context only (angles): {b_item['id']} ({b_date}) | "
+          f"SZA={sza:.1f} VZA={vza:.1f}")
+    print("pixels come from the GCS L1C mirror, selected below")
 
     # ---- pixels from GCS L1C (TOA) ----------------------------------------
-    def find_gcs(day, offsets):
+    _href_cache: dict[tuple[str, str], tuple[str, float]] = {}
+
+    def band_href(safe, band):
+        key = (safe, band)
+        if key not in _href_cache:
+            _href_cache[key] = gcs_band_href(safe, mgrs, band)
+        return _href_cache[key]
+
+    def rel_orbit(safe: str) -> str:
+        return next((p for p in safe.split("_")
+                     if len(p) == 4 and p[0] == "R" and p[1:].isdigit()), "R???")
+
+    def window_nodata_frac(safe: str) -> float:
+        """How much of OUR window this granule actually contains.
+
+        One MGRS tile/day can hold several SAFEs, and a granule at the swath
+        edge may cover only part of the tile. Taking the first SAFE blindly
+        is how a background scene ended up missing 43% of the window.
+        """
+        href, _ = band_href(safe, "B12")
+        arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
+        return float((~np.isfinite(arr)).mean())
+
+    def pick_covering(day, offsets, platform=None, max_nodata=0.02):
+        """Nearest SAFE to `day` whose pixels actually cover the window."""
+        best = (None, None, 1.0)
         for off in offsets:
             d = day + timedelta(days=off)
             safes = gcs_day_safes(mgrs, d.strftime("%Y%m%d"))
-            if safes:
-                return d, safes[0]
-        raise SystemExit(f"no GCS L1C near {day}")
+            if platform is not None:
+                safes = [s for s in safes if s.startswith(platform)]
+            for s in safes:
+                frac = window_nodata_frac(s)
+                if frac <= max_nodata:
+                    return d, s, frac
+                if frac < best[2]:
+                    best = (d, s, frac)
+        return best
 
     # mirror lags ~12 d and lacks S2C: search around the event window
-    t_date, t_safe = find_gcs(event_date, [-1, -2, 0, -3, 1, -4, 2])
-    b_date, b_safe = find_gcs(t_date - timedelta(days=5),
-                              [0, -1, 1, -2, 2, -3, 3])
-    sat = "S2A" if "S2A" in t_safe else "S2B"
-    print(f"GCS pixels: target {sat} {t_safe[:40]}... | bg {b_safe[:40]}...")
+    t_date, t_safe, t_nd = pick_covering(event_date, [-1, -2, 0, -3, 1, -4, 2])
+    if t_safe is None:
+        raise SystemExit(f"no GCS L1C near {event_date}")
+    sat = "S2A" if t_safe.startswith("S2A") else "S2B"
 
-    def load_bands(safe):
-        chans = {}
-        for band in BANDS:
-            href, off = gcs_band_href(safe, mgrs, band)
-            arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
-            arr = np.nan_to_num(arr * 1e4, nan=0.0)
-            chans[band] = ((arr + off) / 1e4).astype(np.float32)
-        return chans
-
-    print("downloading target bands...")
-    tc = load_bands(t_safe)
-    print("downloading background bands...")
-    bc = load_bands(b_safe)
-
-    # ---- GeoTensors -------------------------------------------------------
+    # ---- geometry (needed before any cloud mask can be built) -------------
     import rasterio
     from affine import Affine
     from georeader.geotensor import GeoTensor
     from rasterio.warp import transform as warp_transform
 
-    href0, _ = gcs_band_href(t_safe, mgrs, "B11")
+    href0, _ = band_href(t_safe, "B11")
     with rasterio.open(href0) as src:
         dst_crs = src.crs
     xs, ys = warp_transform("EPSG:4326", dst_crs, [args.lon], [args.lat])
     n = int(args.half_km * 1000 / RES_M)
     transform = Affine(RES_M, 0, xs[0] - n * RES_M, 0, -RES_M, ys[0] + n * RES_M)
+
+    fetch_bands = BANDS if args.no_cloud_mask else ALL_L1C_BANDS
+
+    def load_bands(safe, quiet=False):
+        """DN-scale bands (TOA reflectance x 10000) plus a validity mask.
+
+        vrt_window returns DN * 1e-4 with NaN at nodata; we return to DN,
+        apply the per-band baseline >= 05 offset, and mark anything that is
+        non-finite or non-positive after the offset as invalid.
+        """
+        chans: dict[str, np.ndarray] = {}
+        valid = None
+        for band in fetch_bands:
+            href, off = band_href(safe, band)
+            arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
+            dn = arr * 1e4
+            nodata = ~np.isfinite(dn)
+            dn = np.nan_to_num(dn, nan=0.0) + off
+            negative = (dn <= 0) & ~nodata
+            ok = ~nodata & ~negative
+            # Invalid pixels go to 0 DN, marss2l's own fill value; leaving the
+            # -1000 the offset produces would feed negative radiances in.
+            dn[~ok] = 0.0
+            if not quiet:
+                print(f"    {band}: nodata {nodata.mean():>6.1%} | "
+                      f"negative-after-offset {negative.mean():>6.1%}")
+            chans[band] = dn.astype(np.float32)
+            valid = ok if valid is None else (valid & ok)
+        return chans, valid
+
+    def clear_mask(chans):
+        """Clear-sky mask from CloudSEN12 (UNetMobV2_V2), bundled with marss2l."""
+        from marss2l.mars_sentinel2.s2lutils import compute_cloud_mask
+
+        vals = np.stack([chans[b] for b in ALL_L1C_BANDS], axis=0)
+        g = GeoTensor(values=vals, transform=transform, crs=str(dst_crs),
+                      fill_value_default=0,
+                      attrs={"band_names": ALL_L1C_BANDS.copy()})
+        cm = compute_cloud_mask(g, ALL_L1C_BANDS, satellite=sat)
+        cm_arr = np.asarray(cm.values if hasattr(cm, "values") else cm)
+        return ~np.isin(cm_arr, CLOUDY_CLASSES)
+
+    print(f"target scene: {t_safe} (coverage {1 - t_nd:.1%})")
+    print("downloading target bands...")
+    tc, t_ok = load_bands(t_safe)
+    t_clear = None
+    if not args.no_cloud_mask:
+        t_clear = clear_mask(tc)
+        print(f"target cloud/shadow: {1 - t_clear.mean():.1%}")
+        if 1 - t_clear.mean() > cfg.sentinel2.max_cloud_fraction:
+            print("WARNING: target exceeds the frozen cloud limit "
+                  f"({cfg.sentinel2.max_cloud_fraction:.0%})")
+
+    # ---- background selection --------------------------------------------
+    # Frozen reference rules (config sentinel2.reference) want a clear scene
+    # close in time. Three hard constraints on top, each learned the hard way:
+    # same platform (SWIR calibration), same relative orbit (BRDF), full
+    # window coverage (partial granules), and now low in-window cloud -- a
+    # cloudy background is what turned Permian into a false detection.
+    max_cloud = cfg.sentinel2.max_cloud_fraction
+    b_date = b_safe = bc = b_ok = b_clear = None
+    b_nd, b_cloud = 1.0, 1.0
+    tried: list[str] = []
+    for lag in (10, 20, 30, 40, 50, 60, 70):
+        d, s, nd = pick_covering(t_date - timedelta(days=lag), [0], platform=sat)
+        if s is None or nd > 0.02:
+            tried.append(f"-{lag}d: no covering same-platform granule")
+            continue
+        print(f"trying background -{lag}d: {s[:44]}...")
+        cand_c, cand_ok = load_bands(s, quiet=True)
+        cand_clear = clear_mask(cand_c) if not args.no_cloud_mask else None
+        cloud_frac = 0.0 if cand_clear is None else float(1 - cand_clear.mean())
+        tried.append(f"-{lag}d: coverage {1 - nd:.0%}, cloud {cloud_frac:.0%}")
+        print(f"    coverage {1 - nd:.1%} | cloud/shadow {cloud_frac:.1%}")
+        if cloud_frac < b_cloud:
+            b_date, b_safe, b_nd, b_cloud = d, s, nd, cloud_frac
+            bc, b_ok, b_clear = cand_c, cand_ok, cand_clear
+        if cloud_frac <= max_cloud:
+            break
+    if b_safe is None:
+        raise SystemExit(f"no same-platform ({sat}) covering GCS L1C "
+                         f"background before {t_date}")
+    if b_cloud > max_cloud:
+        print(f"WARNING: best available background is {b_cloud:.1%} cloudy, "
+              f"above the frozen {max_cloud:.0%} limit — "
+              f"treat this retrieval as reference-limited")
+
+    same_orbit = rel_orbit(b_safe) == rel_orbit(t_safe)
+    pairing = (f"{sat} / {rel_orbit(t_safe)} vs {rel_orbit(b_safe)}"
+               f" ({(t_date - b_date).days} d)")
+    print(f"background chosen: {b_safe}")
+    print(f"pairing: {pairing} -> "
+          f"{'same orbit' if same_orbit else 'CROSS-ORBIT (BRDF residual)'}")
 
     def gt(chans):
         vals = np.stack([chans[b] for b in BANDS], axis=0)  # channels-first
@@ -141,7 +281,20 @@ def main(argv=None) -> int:
                          attrs={"band_names": BANDS.copy()})
 
     t_gt, b_gt = gt(tc), gt(bc)
-    valid_np = np.ones(t_gt.values.shape[1:], dtype=bool)
+    valid_np = t_ok & b_ok
+    if t_clear is not None and b_clear is not None:
+        valid_np = valid_np & t_clear & b_clear
+        cloud_note = (f"cloud screening: CloudSEN12 UNetMobV2_V2 "
+                      f"(target {1 - t_clear.mean():.1%}, "
+                      f"background {b_cloud:.1%} cloud/shadow)")
+    else:
+        cloud_note = "cloud screening: DISABLED"
+
+    valid_frac = float(valid_np.mean())
+    print(f"valid pixels: {valid_frac:.1%} of the window "
+          f"({int((~valid_np).sum())} masked as nodata/negative-DN)")
+    if valid_frac < 0.5:
+        print("WARNING: over half the window is invalid — treat with suspicion")
 
     valid_gt = GeoTensor(values=valid_np, transform=transform,
                          crs=str(dst_crs), fill_value_default=False)
@@ -195,6 +348,8 @@ def main(argv=None) -> int:
     # ---- quantification ---------------------------------------------------
     ch4_out = None
     qout = None
+    qout_withheld = None
+    gate = None
     if is_plume:
         from marss2l.mars_sentinel2 import mixing_ratio_methane as mm2
         from marss2l.mars_sentinel2 import quantification as qmod
@@ -221,21 +376,52 @@ def main(argv=None) -> int:
             print(f"core-threshold {args.core_threshold}: "
                   f"flux mask px {int(mask_for_flux.sum())} "
                   f"(was {int(bm.sum())})")
-        kw = {}
-        if args.varon_ueff:
-            kw = dict(a_u_eff=0.33, b_u_eff=0.45)
-        qout = qmod.obtain_flux_rate(
+        # Honesty gates apply to production retrievals too (plan section 7).
+        from plumechaser.retrieve.gates import evaluate_gates
+
+        gate = evaluate_gates(
+            ch4_arr, mask_for_flux.astype(bool), valid=valid_np,
+            sigma_col_ppb_limit=cfg.gates.sigma_col_ppb_limit,
+            mask_fraction_limit=cfg.gates.mask_fraction_limit,
+        )
+        print(f"GATES: sigma_col {gate.sigma_col_ppb:.1f} ppb | "
+              f"mask {gate.mask_fraction:.1%} of valid -> {gate.verdict}")
+        for reason in gate.reasons:
+            print(f"  tripped: {reason}")
+
+        kw = {} if args.raw_u10_ueff else dict(
+            a_u_eff=cfg.ime.ueff_slope, b_u_eff=cfg.ime.ueff_intercept)
+        q_raw = qmod.obtain_flux_rate(
             methane_enhancement_image=ch4_arr,
             plume_mask_binary=mask_for_flux,
             wind_speed=speed, resolution=(RES_M, RES_M),
-            units_methane_enhancement="ppb", seed=20270307,
+            units_methane_enhancement="ppb",
+            seed=cfg.evaluation.random_seed,
             **kw,
         )
         ch4_out = ch4_arr
-        print("QUANTIFICATION:", {k: round(v, 1) if isinstance(v, float) else v
-                                   for k, v in qout.items()})
+
+        # Report the decomposition either way: it is the audit evidence.
+        from plumechaser.retrieve.flux_audit import audit_q_output
+
+        fa = audit_q_output(
+            q_raw, event_id=args.event_id or "run",
+            catalog_rate_t_h=args.rate_t_h, window_px=int(ch4_arr.size),
+        )
+        print(f"  mean in-mask dXCH4 : {fa.mean_enhancement_ppb:.0f} ppb "
+              f"({fa.column_enhancement_factor:.2f}x the 1800 ppb background "
+              f"over {fa.plume_area_km2:.1f} km^2)")
+
+        if gate.artifact_dominated:
+            qout_withheld = q_raw
+            print("QUANTIFICATION WITHHELD — artifact-dominated")
+        else:
+            qout = q_raw
+            print("QUANTIFICATION:", {k: round(v, 1) if isinstance(v, float) else v
+                                      for k, v in q_raw.items()})
         if args.rate_t_h:
-            print(f"catalog rate: {args.rate_t_h:.0f} t/h")
+            print(f"catalog rate: {args.rate_t_h:.0f} t/h "
+                  f"(ratio {fa.ratio_to_catalog:.1f}x)")
     else:
         print("MARS-S2L reports no plume at target date — honest null")
 
@@ -252,21 +438,44 @@ def main(argv=None) -> int:
         cue_action="cue_sentinel2",
         cue_reason="marss2l production retrieval on catalog event",
         quant=None, u10_ms=speed, wind_source="Open-Meteo/ERA5",
-        context_verdict=("PLUME DETECTED (MARS-S2L)" if is_plume
-                         else "no plume detected by production model"),
+        context_verdict=(
+            gate.verdict if gate is not None
+            else ("PLUME DETECTED (MARS-S2L)" if is_plume
+                  else "no plume detected by production model")),
         provenance=(
             f"engine: marss2l==0.2.10 MARS-S2L (LGPL)\n"
-            f"target: {t_item['id']}\nbackground: {b_item['id']}\n"
+            f"pixels target: {t_safe}\npixels background: {b_safe}\n"
+            f"pairing: {pairing} ({'same' if same_orbit else 'CROSS'}-orbit)\n"
+            f"angles from STAC: {t_item['id']}\n"
+            f"input scale: DN (TOA reflectance x 10000)\n"
+            f"{cloud_note}\n"
+            f"valid pixels: {valid_frac:.1%}\n"
             f"SZA/VZA: {sza:.1f}/{vza:.1f}\n"
             f"scene_score: {scene_score:.3f}\n"
             f"mbmp_ratio_median: {float(np.median(finite_ratio)):.4f}"
         ),
     )
+
+    def _round(q):
+        return ({k: (round(v, 2) if isinstance(v, float) else v)
+                 for k, v in q.items()} if q else None)
+
     bdir = write_bundle(d, REPO / "bundles", extra={
         "is_plume": bool(is_plume), "scene_score": float(scene_score),
         "plume_px": int(bm.sum()),
-        "q_output": ({k: (round(v, 2) if isinstance(v, float) else v)
-                      for k, v in qout.items()} if qout else None),
+        "pixels_target_safe": t_safe,
+        "pixels_background_safe": b_safe,
+        "same_relative_orbit": bool(same_orbit),
+        "background_window_coverage": round(1 - b_nd, 4),
+        "background_cloud_fraction": round(b_cloud, 4),
+        "background_candidates_tried": tried,
+        "input_scale": "DN (TOA reflectance x 10000)",
+        "cloud_screening": cloud_note,
+        "valid_fraction": round(valid_frac, 4),
+        "gates": (gate.as_dict() if gate is not None else None),
+        "q_output": _round(qout),
+        # Kept for the audit trail only; withheld from every headline by rule.
+        "q_output_withheld_artifact_dominated": _round(qout_withheld),
     })
 
     import matplotlib

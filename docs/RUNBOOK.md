@@ -115,10 +115,24 @@ Two Python environments exist:
 |---|---|---|
 | `scripts/power_assessment.py` | branch assignment from mirrored catalog | .venv |
 | `scripts/real_s2_demo.py` | our simplified MBMP chain on real S2 pixels (GCS L1C / AWS L2A), honesty gates, Gate-B injection | .venv |
-| `scripts/mars2l_demo.py` | UNEP MARS-S2L production inference on same events (detection + flux; flux UNDER AUDIT) | .venv-mars |
+| `scripts/mars2l_demo.py` | UNEP MARS-S2L production inference on same events (detection + flux; honesty-gated) | .venv-mars |
+| `scripts/flux_audit.py` | offline decomposition of every recorded flux into mean-enhancement × sqrt(area) | .venv |
 | `scripts/make_figures.py` | paper figures from real data | .venv |
 | `scripts/freeze.py` | freeze ceremony (dry-run first!) | .venv |
 | `scripts/smoke_check.py` | 10-second synthetic sanity run | .venv |
 
 Campaign findings + open flux-audit items:
 `docs/S2_REAL_DATA_FINDINGS.md` (read before quoting any rate).
+
+### Input conventions that have already cost us a campaign
+
+* MARS-S2L wants **DN = TOA reflectance × 10000**, not 0–1 reflectance.
+  Its MBMP channel is scale-invariant, so a wrong scale does not crash and
+  does not even look wrong — it silently strips the model's radiance
+  context and inflates masks.
+* Background scenes must be **same platform, same relative orbit (10-day
+  multiples), fully covering the window, and cloud-screened**. One MGRS
+  tile/day can hold several SAFEs; `safes[0]` is not safe.
+* L1C `RADIO_ADD_OFFSET` has **13** band_ids including B10:
+  B10=10, **B11=11, B12=12**. The L2A ordering (B11=10, B12=11) is wrong
+  for the L1C products the GCS mirror serves.

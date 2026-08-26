@@ -35,11 +35,24 @@ execution. Total blocking time: ≈3 hours.
 - [x] Repo live: github.com/sathvikloke/plumechaser (CI green, 70 tests)
 - [x] CAMS catalog mirrored (4,751 events); licenses verified
 - [x] Power branch = FULL (n_eff 57); CNN + SVC trained on real SRON data
-- [x] Real S2 campaigns: our chain (gates held) + marss2l production
-      detections at BOTH targets (.995/.996) — see
-      docs/S2_REAL_DATA_FINDINGS.md
-- [x] OPEN ITEM: absolute-flux overestimate (~6-13x) under audit — do not
-      quote absolute rates until resolved
+- [x] Real S2 campaigns: our chain (gates held) + marss2l production run
+      — see docs/S2_REAL_DATA_FINDINGS.md
+- [x] Flux audit CLOSED 2026-08-25: root cause was a 10^4 model-input scale
+      error (reflectance vs DN) that stripped the segmentation model of all
+      radiance context, plus partial-granule backgrounds, cross-orbit
+      pairing and no cloud screening. Corrected Permian lands at 1.4x
+      catalog; the ".996/.995 detections at both targets" claim is
+      WITHDRAWN (Permian holds at .994; Korpezhe is no-detection because
+      the only mirrored scene is 53% cloud).
+
+## Now open (from the flux audit)
+- [ ] Re-derive the σ_col gate per retrieval scale BEFORE Nov 1 freeze —
+      80 ppb was calibrated on our simplified alpha, which is 4.4–6.3x more
+      sensitive than the production RTM LUT it is now applied to
+- [ ] Replace `mbmp.alpha_*` with an RTM-derived LUT (measured gap ~5x)
+- [ ] Controlled-release cross-check (Ehrenberg/Casa Grande AZ, Sherwin
+      et al. 2023 rates) to close absolute flux properly
+- [ ] Still do not quote absolute t/h anywhere — gates withhold every run
 
 ## Then: phase gates
 | Gate | Date | Deliverable |

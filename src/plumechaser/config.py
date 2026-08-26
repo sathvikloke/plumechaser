@@ -82,6 +82,18 @@ class ImeCfg:
 
 
 @dataclass(frozen=True)
+class GatesCfg:
+    """Honesty-gate limits, shared by every retrieval path.
+
+    Defaults reproduce the pre-registered values so that a config written
+    before the ``gates`` section existed still loads and still gates.
+    """
+
+    sigma_col_ppb_limit: float = 80.0
+    mask_fraction_limit: float = 0.15
+
+
+@dataclass(frozen=True)
 class EvaluationCfg:
     match_radius_km: float
     match_window_days: int
@@ -108,6 +120,7 @@ class Config:
     ime: ImeCfg
     evaluation: EvaluationCfg
     paths: Paths
+    gates: GatesCfg = field(default_factory=GatesCfg)
     raw: dict[str, Any] = field(repr=False, default_factory=dict)
 
 
@@ -203,6 +216,14 @@ def load_config(path: str | Path = "config/default.yaml") -> Config:
         random_seed=int(e["random_seed"]),
     )
 
+    g = raw.get("gates") or {}
+    gates = GatesCfg(
+        sigma_col_ppb_limit=float(g.get("sigma_col_ppb_limit", 80.0)),
+        mask_fraction_limit=float(g.get("mask_fraction_limit", 0.15)),
+    )
+    if gates.sigma_col_ppb_limit <= 0 or not 0 < gates.mask_fraction_limit <= 1:
+        raise ConfigError(f"gates: implausible limits {gates}")
+
     paths = Paths(
         mirrors=Path(_require(raw, "paths", "mirrors")),
         manifests=Path(_require(raw, "paths", "manifests")),
@@ -218,6 +239,7 @@ def load_config(path: str | Path = "config/default.yaml") -> Config:
         ime=ime,
         evaluation=evaluation,
         paths=paths,
+        gates=gates,
         raw=raw,
     )
 

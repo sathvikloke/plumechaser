@@ -58,6 +58,13 @@ mbmp:
   plume_threshold_sigma: 3.0
   morphological_median_size: 3
 
+gates:
+  # Honesty gates. A retrieval that trips EITHER gate is ARTIFACT-DOMINATED
+  # and its quantification is withheld (analysis plan section 7). These
+  # apply to EVERY retrieval path, including production models (marss2l).
+  sigma_col_ppb_limit: 80.0   # robust MAD sigma of the background column field
+  mask_fraction_limit: 0.15   # plume mask as a fraction of the retrieval window
+
 ime:
   ueff_slope: 0.33            # Ueff = slope*U10 + intercept (Varon et al. 2021)
   ueff_intercept: 0.45

@@ -83,9 +83,12 @@ def gcs_band_href(safe: str, mgrs: str, band: str) -> tuple[str, float]:
     assert names, f"band {band} not found under {img_prefix}"
     href = f"{GCS_PUBLIC}/{names[0]}"
 
+    # L1C carries 13 RADIO_ADD_OFFSET entries (band_id 0-12) INCLUDING the
+    # B10 cirrus band; the L2A ordering omits B10 and would shift B11/B12
+    # onto the wrong entries. Verified against a real MTD_DS.xml (13 entries).
     band_id = {"B01": 0, "B02": 1, "B03": 2, "B04": 3, "B05": 4,
                "B06": 5, "B07": 6, "B08": 7, "B8A": 8, "B09": 9,
-               "B11": 10, "B12": 11}[band]
+               "B10": 10, "B11": 11, "B12": 12}[band]
     mtd_pre = pre + "/DATASTRIP/"
     jsm = _http_json(GCS_BASE, {"prefix": mtd_pre, "maxResults": 5})
     mtd_names = [i["name"] for i in jsm.get("items", [])
