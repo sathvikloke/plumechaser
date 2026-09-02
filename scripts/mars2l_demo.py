@@ -97,6 +97,10 @@ def main(argv=None) -> int:
                     help="restrict flux IME to continuous_pred > threshold")
     ap.add_argument("--no-cloud-mask", action="store_true",
                     help="skip CloudSEN12 screening (faster: 6 bands not 13)")
+    ap.add_argument("--delineate", action="store_true",
+                    help="constrain the segmentation mask with "
+                         "retrieve/delineate.py before quantifying "
+                         "(source connectivity, downwind sector, amplitude)")
     ap.add_argument("--exact-date", action="store_true",
                     help="require the target scene to be ON --date. Mandatory "
                          "for controlled-release work, where a neighbouring "
@@ -414,6 +418,7 @@ def main(argv=None) -> int:
     qout = None
     qout_withheld = None
     gate = None
+    delin = None
     if is_plume:
         from marss2l.mars_sentinel2 import mixing_ratio_methane as mm2
         from marss2l.mars_sentinel2 import quantification as qmod
@@ -440,6 +445,38 @@ def main(argv=None) -> int:
             print(f"core-threshold {args.core_threshold}: "
                   f"flux mask px {int(mask_for_flux.sum())} "
                   f"(was {int(bm.sum())})")
+        if args.delineate:
+            from plumechaser.retrieve.delineate import (
+                delineate_plume,
+                rejection_report,
+            )
+
+            # Source pixel from the geotransform, not the window centre: the
+            # anchor is clamped near tile edges, so centre != source there.
+            src_col = (xs[0] - transform.c) / transform.a
+            src_row = (ys[0] - transform.f) / transform.e
+            d = delineate_plume(
+                mask_for_flux.astype(bool),
+                enhancement_ppb=ch4_arr,
+                source_rc=(src_row, src_col),
+                wind_vector_ms=(u10, v10),
+                pixel_size_m=RES_M,
+                valid=valid_np,
+            )
+            rep = rejection_report(d)
+            print(f"DELINEATION: {d.n_input_px} -> {d.n_kept_px} px "
+                  f"({d.n_kept_px / max(d.n_input_px, 1):.1%} kept) | "
+                  f"implied flux factor {rep['implied_flux_factor']:.3f}")
+            print(f"  dominant rule: {rep.get('dominant_rule')} | "
+                  f"bookkeeping balanced: {rep.get('balanced')}")
+            for rule in rep.get("rules", []):
+                if rule.get("dropped"):
+                    print(f"    {rule['rule']:<22} dropped {rule['dropped']}")
+            if d.n_kept_px == 0:
+                print("  delineation retained nothing — no quantifiable plume")
+            mask_for_flux = d.mask.astype(float)
+            delin = d.as_dict()
+
         # Honesty gates apply to production retrievals too (plan section 7).
         # The ppb limit must match the scale of the field being gated: this
         # is an RTM retrieval, whose columns run several times larger than
@@ -562,6 +599,7 @@ def main(argv=None) -> int:
         "cloud_screening": cloud_note,
         "valid_fraction": round(valid_frac, 4),
         "gates": (gate.as_dict() if gate is not None else None),
+        "delineation": delin,
         "gate_sigma_limit_ppb": (round(sigma_limit, 1) if gate is not None else None),
         "gate_sigma_scale": (scale_note if gate is not None else None),
         "q_output": _round(qout),
