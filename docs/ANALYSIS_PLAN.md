@@ -148,6 +148,30 @@ Kill dates: Dec 15 autonomy · Feb 1 results tabulated · Mar 1 content freeze.
      success-ladder criterion is altered by this addendum. Absolute fluxes
      remain UNDER AUDIT and are withheld by the gates in every run to date.
 
+  5. *Controlled-release validation and a third honesty gate.* Metered
+     ground truth (Sherwin et al. 2023/2024, Ehrenberg + Casa Grande AZ) was
+     run through the chain. On **metered-zero** scenes it reported 146 and
+     157 t/h and the production model called a plume at ≥0.996; on real
+     5–7 t/h releases it reported 223–326 t/h, ~44–45× truth and only ~1.5–2×
+     the zero-control value. Mean in-mask enhancements reached 4.8–6.5× the
+     ambient column. **Conclusion: the absolute-flux artifact floor of this
+     chain is ~150 t/h, above every rate the study targets; absolute flux is
+     therefore not an endpoint we can support, and the pre-registered
+     withholding rule (§7) is what carries it.** All quantifications were
+     withheld by the gates, which is the first validation of the gate system
+     against known truth.
+
+     New gate, added pre-freeze: `gates.max_mean_enhancement_ratio = 1.0` —
+     a mask-wide mean enhancement above the ambient CH₄ column is unphysical
+     for a point source. This *tightens* the withholding rule and cannot turn
+     a withheld run into a reported one, so it strictly increases
+     conservatism relative to the pre-registration.
+
+     Note for §2/§8: this does not change the primary endpoint, which is
+     detection agreement, not rate agreement. It does mean the Bland–Altman
+     rate comparison in §4 is expected to be reportable only as a negative
+     result unless the plume-delineation gap closes.
+
 *(entries appear here only with date + reason)*
 
 ## 10. Accepted risks (permanent disclosure)

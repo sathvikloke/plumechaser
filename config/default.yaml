@@ -73,6 +73,15 @@ gates:
   # which reproduces exactly 80 ppb on the simplified chain, so the frozen
   # operating point is unchanged. On the RTM scale it lands near 500 ppb.
   sigma_log_ratio_limit: 0.0072
+  # Physical-plausibility gate, added 2026-08-25 from the controlled-release
+  # runs: on METERED-ZERO scenes the mask still claimed 1,361 and 8,667 ppb
+  # mean enhancement, and on real 5-7 t/h releases 9,341-11,718 ppb -- 4-6x
+  # the entire ambient column, sustained mask-wide. A point source cannot do
+  # that; such a mask has locked onto surface or infrastructure structure.
+  # Deliberately permissive: a real 26 t/h plume over those masks needs ~170
+  # ppb, a tenth of this limit. Expressed as a multiple of the ambient column
+  # (1800 ppb), so it is calibration-scale independent.
+  max_mean_enhancement_ratio: 1.0
 
 ime:
   ueff_slope: 0.33            # Ueff = slope*U10 + intercept (Varon et al. 2021)

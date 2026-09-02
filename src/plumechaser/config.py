@@ -94,6 +94,9 @@ class GatesCfg:
     # Calibration-independent anchor; see config comment and
     # retrieve.gates.sigma_ppb_limit_for_scale.
     sigma_log_ratio_limit: float = 0.0072
+    # Multiple of the ambient CH4 column above which a mask-wide mean
+    # enhancement is physically impossible for a point source.
+    max_mean_enhancement_ratio: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -224,10 +227,13 @@ def load_config(path: str | Path = "config/default.yaml") -> Config:
         sigma_col_ppb_limit=float(g.get("sigma_col_ppb_limit", 80.0)),
         mask_fraction_limit=float(g.get("mask_fraction_limit", 0.15)),
         sigma_log_ratio_limit=float(g.get("sigma_log_ratio_limit", 0.0072)),
+        max_mean_enhancement_ratio=float(
+            g.get("max_mean_enhancement_ratio", 1.0)),
     )
     if (gates.sigma_col_ppb_limit <= 0
             or not 0 < gates.mask_fraction_limit <= 1
-            or gates.sigma_log_ratio_limit <= 0):
+            or gates.sigma_log_ratio_limit <= 0
+            or gates.max_mean_enhancement_ratio <= 0):
         raise ConfigError(f"gates: implausible limits {gates}")
 
     paths = Paths(

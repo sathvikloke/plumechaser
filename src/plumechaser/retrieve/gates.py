@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .flux_audit import BACKGROUND_CH4_PPB
 from .mbmp import robust_scene_sigma
 
 __all__ = ["GateVerdict", "evaluate_gates", "sigma_ppb_limit_for_scale"]
@@ -70,6 +71,7 @@ class GateVerdict:
     n_window_px: int  # valid pixels only, when a valid mask is supplied
     artifact_dominated: bool
     reasons: tuple[str, ...] = field(default_factory=tuple)
+    mean_enhancement_ppb: float = float("nan")
 
     @property
     def verdict(self) -> str:
@@ -82,6 +84,7 @@ class GateVerdict:
             "mask_fraction": round(self.mask_fraction, 4),
             "n_mask_px": self.n_mask_px,
             "n_window_px": self.n_window_px,
+            "mean_enhancement_ppb": round(self.mean_enhancement_ppb, 1),
             "artifact_dominated": self.artifact_dominated,
             "gate_reasons": list(self.reasons),
             "verdict": self.verdict,
@@ -95,6 +98,7 @@ def evaluate_gates(
     valid: np.ndarray | None = None,
     sigma_col_ppb_limit: float = 80.0,
     mask_fraction_limit: float = 0.15,
+    max_mean_enhancement_ratio: float = 1.0,
 ) -> GateVerdict:
     """Apply the honesty gates to one retrieval.
 
@@ -107,9 +111,28 @@ def evaluate_gates(
             both statistics are computed over real observations only.
         sigma_col_ppb_limit: max tolerated background column sigma.
         mask_fraction_limit: max tolerated plume-mask fraction of the window.
+        max_mean_enhancement_ratio: max mean in-mask enhancement as a multiple
+            of the ambient methane column. See the physical-plausibility note
+            below; 1.0 means "the mask may not claim the column is doubled
+            across its whole footprint".
 
     Returns:
         GateVerdict; ``artifact_dominated`` True means withhold the flux.
+
+    Physical plausibility
+    ---------------------
+    The third gate came out of the 2026-08-25 controlled-release runs. On
+    scenes with a **metered zero release** the mask still claimed mean
+    enhancements of 1,361 and 8,667 ppb, and on real 5-7 t/h releases it
+    claimed 9,341-11,718 ppb -- four to six times the entire ambient column,
+    sustained across the whole mask. No point source at these rates can do
+    that; a mask-wide mean above the ambient column means the mask has locked
+    onto a surface or infrastructure artifact.
+
+    This bound is deliberately permissive. A real plume's *core* can approach
+    the ambient column near the source; the constraint is on the mask-wide
+    *mean*. For reference, a catalog-consistent 26 t/h plume over the masks we
+    were producing needs a mean near 170 ppb, roughly a tenth of the limit.
     """
     field_arr = np.asarray(enhancement_ppb, dtype=float)
     mask = np.asarray(plume_mask).astype(bool)
@@ -137,7 +160,18 @@ def evaluate_gates(
     # the mask gate below is what catches that case.
     sigma = robust_scene_sigma(background) if background.size else float("inf")
 
+    in_mask = field_arr[mask & valid_arr]
+    in_mask = in_mask[np.isfinite(in_mask)]
+    mean_enh = float(in_mask.mean()) if in_mask.size else float("nan")
+    enh_limit = max_mean_enhancement_ratio * BACKGROUND_CH4_PPB
+
     reasons: list[str] = []
+    if np.isfinite(mean_enh) and mean_enh > enh_limit:
+        reasons.append(
+            f"mean in-mask enhancement {mean_enh:.0f} ppb is "
+            f"{mean_enh / BACKGROUND_CH4_PPB:.1f}x the ambient column — "
+            f"unphysical for a point source (limit {enh_limit:.0f} ppb)"
+        )
     if sigma > sigma_col_ppb_limit:
         reasons.append(
             f"sigma_col {sigma:.1f} ppb > {sigma_col_ppb_limit:.0f} ppb limit"
@@ -155,4 +189,5 @@ def evaluate_gates(
         n_window_px=n_window,
         artifact_dominated=bool(reasons),
         reasons=tuple(reasons),
+        mean_enhancement_ppb=mean_enh,
     )

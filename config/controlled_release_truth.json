@@ -14,8 +14,10 @@
     "smallest 2021 detection; 1.19 [1.15, 1.23] and 1.05 [0.99, 1.10] t/h in",
     "2022).",
     "",
-    "PLATFORM AND MGRS TILE ARE DEliberately ABSENT: no source states them.",
-    "Resolve from the UTC timestamp against the Copernicus/GCS catalogue."
+    "PLATFORM IS DELIBERATELY ABSENT: no source states S2A vs S2B. Resolve it",
+    "from the UTC timestamp against the Copernicus/GCS catalogue. The MGRS",
+    "tiles below are likewise unpublished; we resolved them ourselves and",
+    "label them as such."
   ],
   "citation": [
     "Sherwin, E.D. et al. (2023) Single-blind validation of space-based",
@@ -44,56 +46,224 @@
       "name": "ehrenberg_2021",
       "site": "Ehrenberg, Arizona",
       "lat": 33.630645,
-      "lon": -114.489150,
+      "lon": -114.48915,
       "release_height_m_agl": 5,
       "coordinates_note": "Release stack. Operators were instead given 33.630637, -114.487755 (~130 m east).",
       "window_start": "2021-10-16",
       "window_end": "2021-11-03",
       "overpasses": [
-        {"date": "2021-10-19", "utc": "18:24:58", "kg_h": 7176.0, "ci95": [6796.0, 7585.0], "kind": "release"},
-        {"date": "2021-10-22", "utc": "18:34:54", "kg_h": 1675.0, "ci95": [1585.0, 1771.0], "kind": "release"},
-        {"date": "2021-10-24", "utc": "18:25:02", "kg_h": 3993.0, "ci95": [3779.0, 4218.0], "kind": "release", "note": "filtered by all four teams (cloud)"},
-        {"date": "2021-10-27", "utc": "18:34:57", "kg_h": 3496.0, "ci95": [3309.0, 3694.0], "kind": "release"},
-        {"date": "2021-10-29", "utc": "18:24:58", "kg_h": 5019.0, "ci95": [4751.0, 5309.0], "kind": "release"},
-        {"date": "2021-11-01", "utc": "18:34:54", "kg_h": 0.0, "ci95": [0.0, 0.0], "kind": "zero_control"},
-        {"date": "2021-11-03", "utc": "18:25:01", "kg_h": 1387.0, "ci95": [1312.0, 1467.0], "kind": "release"}
-      ]
+        {
+          "date": "2021-10-19",
+          "utc": "18:24:58",
+          "kg_h": 7176.0,
+          "ci95": [
+            6796.0,
+            7585.0
+          ],
+          "kind": "release"
+        },
+        {
+          "date": "2021-10-22",
+          "utc": "18:34:54",
+          "kg_h": 1675.0,
+          "ci95": [
+            1585.0,
+            1771.0
+          ],
+          "kind": "release"
+        },
+        {
+          "date": "2021-10-24",
+          "utc": "18:25:02",
+          "kg_h": 3993.0,
+          "ci95": [
+            3779.0,
+            4218.0
+          ],
+          "kind": "release",
+          "note": "filtered by all four teams (cloud)"
+        },
+        {
+          "date": "2021-10-27",
+          "utc": "18:34:57",
+          "kg_h": 3496.0,
+          "ci95": [
+            3309.0,
+            3694.0
+          ],
+          "kind": "release"
+        },
+        {
+          "date": "2021-10-29",
+          "utc": "18:24:58",
+          "kg_h": 5019.0,
+          "ci95": [
+            4751.0,
+            5309.0
+          ],
+          "kind": "release"
+        },
+        {
+          "date": "2021-11-01",
+          "utc": "18:34:54",
+          "kg_h": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "kind": "zero_control"
+        },
+        {
+          "date": "2021-11-03",
+          "utc": "18:25:01",
+          "kg_h": 1387.0,
+          "ci95": [
+            1312.0,
+            1467.0
+          ],
+          "kind": "release"
+        }
+      ],
+      "mgrs_tile": "11SQT",
+      "mgrs_note": "Resolved by us from the GCS L1C catalogue at the site coordinates; not stated in any published source."
     },
     {
       "name": "casa_grande_2022",
       "site": "Casa Grande, Arizona",
       "lat": 32.8218205,
-      "lon": -111.7857730,
+      "lon": -111.785773,
       "window_start": "2022-10-10",
       "window_end": "2022-11-30",
       "uncertainty_note": "Source file gives 1-sigma; the papers' brackets are mean +/- 2 sigma.",
       "overpasses": [
-        {"date": "2022-10-26", "utc": "18:15:09", "kg_h": 1047.0, "sigma": 28.6, "kind": "release"},
-        {"date": "2022-11-08", "utc": "18:25:06", "kg_h": 1190.1, "sigma": 18.6, "kind": "release"},
-        {"date": "2022-11-15", "utc": "18:15:09", "kg_h": 1495.7, "sigma": 21.2, "kind": "release"},
-        {"date": "2022-11-18", "utc": "18:25:03", "kg_h": 1428.4, "sigma": 22.7, "kind": "release"},
-        {"date": "2022-11-25", "utc": "18:15:06", "kg_h": 0.0, "sigma": 0.0, "kind": "zero_control"},
-        {"date": "2022-11-28", "utc": "18:25:02", "kg_h": 4.95, "sigma": 0.03, "kind": "zero_control", "note": "0.005 t/h; the authors treat non-detection here as a true negative"},
-
-        {"date": "2022-10-11", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-14", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-16", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-19", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-21", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-24", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-29", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-10-31", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-03", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-10", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-13", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-20", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-23", "kg_h": 0.0, "kind": "no_release"},
-        {"date": "2022-11-30", "kg_h": 0.0, "kind": "no_release"}
+        {
+          "date": "2022-10-26",
+          "utc": "18:15:09",
+          "kg_h": 1047.0,
+          "sigma": 28.6,
+          "kind": "release"
+        },
+        {
+          "date": "2022-11-08",
+          "utc": "18:25:06",
+          "kg_h": 1190.1,
+          "sigma": 18.6,
+          "kind": "release"
+        },
+        {
+          "date": "2022-11-15",
+          "utc": "18:15:09",
+          "kg_h": 1495.7,
+          "sigma": 21.2,
+          "kind": "release"
+        },
+        {
+          "date": "2022-11-18",
+          "utc": "18:25:03",
+          "kg_h": 1428.4,
+          "sigma": 22.7,
+          "kind": "release"
+        },
+        {
+          "date": "2022-11-25",
+          "utc": "18:15:06",
+          "kg_h": 0.0,
+          "sigma": 0.0,
+          "kind": "zero_control"
+        },
+        {
+          "date": "2022-11-28",
+          "utc": "18:25:02",
+          "kg_h": 4.95,
+          "sigma": 0.03,
+          "kind": "zero_control",
+          "note": "0.005 t/h; the authors treat non-detection here as a true negative"
+        },
+        {
+          "date": "2022-10-11",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-14",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-16",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-19",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-21",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-24",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-29",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-10-31",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-03",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-10",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-13",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-20",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-23",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        },
+        {
+          "date": "2022-11-30",
+          "kg_h": 0.0,
+          "kind": "no_release"
+        }
       ],
       "void_overpasses": [
-        {"date": "2022-10-18", "utc": "17:49", "reason": "release cancelled, system malfunction"},
-        {"date": "2022-11-05", "utc": "18:14", "reason": "release cancelled, system malfunction"}
-      ]
+        {
+          "date": "2022-10-18",
+          "utc": "17:49",
+          "reason": "release cancelled, system malfunction"
+        },
+        {
+          "date": "2022-11-05",
+          "utc": "18:14",
+          "reason": "release cancelled, system malfunction"
+        }
+      ],
+      "mgrs_tile": "12SVB",
+      "mgrs_note": "Resolved by us from the GCS L1C catalogue at the site coordinates; not stated in any published source."
     }
   ],
   "kind_semantics": {

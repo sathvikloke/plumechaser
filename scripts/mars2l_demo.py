@@ -470,6 +470,7 @@ def main(argv=None) -> int:
             ch4_arr, mask_for_flux.astype(bool), valid=valid_np,
             sigma_col_ppb_limit=sigma_limit,
             mask_fraction_limit=cfg.gates.mask_fraction_limit,
+            max_mean_enhancement_ratio=cfg.gates.max_mean_enhancement_ratio,
         )
         print(f"GATES: sigma_col {gate.sigma_col_ppb:.1f} ppb "
               f"vs {sigma_limit:.0f} ppb limit [{scale_note}] | "

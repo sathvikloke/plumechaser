@@ -84,6 +84,10 @@ def run_one(camp: dict, op: dict, *, half_km: float, core_threshold: float,
         "--exclude-background",
         f"{camp['window_start']}:{camp['window_end']}",
     ]
+    if camp.get("mgrs_tile"):
+        # STAC has no usable pair on some archive dates; without an explicit
+        # tile the run aborts rather than falling back.
+        argv += ["--mgrs", camp["mgrs_tile"]]
     if op.get("kg_h"):
         argv += ["--rate-t-h", str(float(op["kg_h"]) / 1000.0)]
     if no_cloud_mask:

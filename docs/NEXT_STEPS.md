@@ -61,9 +61,22 @@ execution. Total blocking time: ≈3 hours.
 - [x] Replay dashboard no longer opens on a withdrawn bundle by default
 - [x] Withdrawn/diagnostic classification centralised in `report/status.py`
 
+- [x] Controlled-release campaign run (6 overpasses incl. 2 zero controls).
+      **Artifact floor measured at ~150 t/h**: metered-zero scenes returned
+      146 and 157 t/h with is_plume=True at >=0.996. Real 5-7 t/h releases
+      returned 223-326 t/h (44-45x truth), i.e. indistinguishable from the
+      floor. Gates withheld 100% of quantifications — first validation of
+      the gate system against KNOWN truth. Third gate added
+      (`max_mean_enhancement_ratio`). The earlier "Permian 1.4x catalog"
+      reading is retracted as coincidence.
+
 ## Now open
-- [ ] Finish the controlled-release campaign (zero controls first) and write
-      the artifact-floor number into S2_REAL_DATA_FINDINGS
+- [ ] Run the remaining 7 controlled-release overpasses + the 14 no-release
+      Casa Grande scenes as extra zero controls (mgrs now recorded, so the
+      2022-11-28 skip is fixed)
+- [ ] Close the plume-delineation gap: our masks are 1-2 orders of magnitude
+      too large (2,626 px for a 7 t/h release). Published teams hit within
+      ~2x on the same pixels, so this is our chain, not the sensor
 - [ ] Wire `retrieve/calibration.py` into `real_s2_demo.py` so our own chain
       reports RTM-scale ppb (currently still fixed-alpha)
 - [ ] Per-basin × season σ climatology for the atlas — needs many more

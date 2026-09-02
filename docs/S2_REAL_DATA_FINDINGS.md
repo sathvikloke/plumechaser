@@ -285,6 +285,90 @@ currently −1000, but it silently reads the wrong band's offset the moment
 ESA issues per-band values. The "known gotcha" note stating B11=10/B12=11
 was describing L2A and should be corrected wherever it is recorded.
 
+---
+
+## Controlled-release validation — 2026-08-25, and it closes the audit
+
+Metered ground truth from the Stanford/EDF single-blind tests
+(`config/controlled_release_truth.json`, Sherwin et al. 2023/2024). This is
+the only dataset where the true rate is **known** rather than inferred from
+another satellite's catalog, and it settles the absolute-flux question.
+
+`python scripts/controlled_release.py --limit 6`
+
+| Overpass | Metered truth | is_plume | score | Our flux | vs truth | mean in-mask ΔXCH₄ |
+|---|---|---|---|---|---|---|
+| Ehrenberg 2021-11-01 | **0 (zero control)** | **True** | 0.998 | **157 t/h** | — | 8,667 ppb (**4.8× column**) |
+| Casa Grande 2022-11-25 | **0 (zero control)** | **True** | 0.996 | **146 t/h** | — | 1,361 ppb |
+| Ehrenberg 2021-10-19 | 7.18 t/h | True | 0.993 | 326 t/h | **45×** | 11,718 ppb (**6.5× column**) |
+| Ehrenberg 2021-10-29 | 5.02 t/h | True | 0.9995 | 223 t/h | **44×** | 9,341 ppb (**5.2× column**) |
+| Ehrenberg 2021-10-24 | 3.99 t/h | False | 0.120 | — | — | (98% cloud, correct null) |
+
+All quantifications were **withheld by the honesty gates**. Every scene used
+a same-platform, same-relative-orbit, cloud-screened, fully-covering
+background, with the campaign window excluded so no reference carried its own
+release.
+
+### The finding
+
+**Our artifact floor is ~150 t/h.** On scenes with a metered zero the chain
+reports 146 and 157 t/h and the production model calls a plume at ≥0.996
+confidence. The releases we were trying to measure are 1.4–7.2 t/h — twenty
+to forty times *below* the floor. The 223–326 t/h returned on real release
+days is only ~1.5–2× the zero-control value, i.e. **the "signal" on release
+days is the same artifact as on the zero day**, not the gas.
+
+The mechanism is explicit in the mean in-mask enhancement: 8,667–11,718 ppb
+at Ehrenberg, **4.8–6.5× the entire ambient methane column, sustained across
+the mask** — and 8,667 ppb of it on a day when the meter read zero. The mask
+is locking onto persistent structure at the site (the release rig, hard
+standing, vehicles) whose B12/B11 ratio differs from the background pass by
+about 10%, which the RTM inverts into ~10,000 ppb.
+
+Two distinct artifact modes are visible: Ehrenberg is compact and
+high-amplitude (~10,000 ppb over 0.4–1.0 km²), Casa Grande is diffuse and
+moderate (1,361 ppb over 16.7 km²).
+
+### This corrects an earlier reading in this document
+
+The Permian result above — retrieved flux 1.4× the catalog rate — was
+reported as encouraging. **It is not evidence of quantification skill.** With
+an artifact floor near 150 t/h and a catalog rate of 82 t/h, a 117 t/h
+retrieval is fully consistent with pure artifact. The chain cannot presently
+distinguish an 82 t/h source from zero, so the agreement is coincidence. The
+1.4× figure must not appear as a validation result anywhere.
+
+### What this does and does not indict
+
+It indicts **our chain**, not Sentinel-2 and not MARS-S2L as UNEP operates
+it. On these same overpasses the published teams retrieved rates within
+roughly a factor of two of truth (2021-10-19, truth 7,176 kg/h: Harvard
+4,069 · Kayrros 6,790 · LARS 5,468 · SRON 3,760). We are 45× off on the same
+pixels. The gap is plume delineation and analyst QC — a mask of 2,626 px
+(1.05 km²) for a 7 t/h release is one to two orders of magnitude too large.
+
+### Consequences
+
+1. **The flux audit is closed with a negative result, and that is a real
+   result.** Absolute flux from this chain is not usable at any rate we have
+   targeted, and we can now say so with a measured number rather than a
+   suspicion.
+2. **The honesty gates are validated against known truth.** They withheld
+   100% of quantified runs, including both false detections. This is the
+   strongest evidence the project has that the gate system works.
+3. **`scene_score` is not a trustworthy detection statistic in our
+   pipeline.** It read ≥0.996 on two metered zeros. Detection claims need
+   the gates and the physical-plausibility check, not the score.
+4. **New gate added** (`gates.max_mean_enhancement_ratio`): a mask-wide mean
+   enhancement above the ambient column is unphysical for a point source.
+   Deliberately permissive — a 26 t/h plume needs ~170 ppb, a tenth of the
+   limit — but it catches every bad run in this document, including the ones
+   that passed both existing gates.
+5. **The observability atlas gains its sharpest entry**: at 20 m resolution
+   over bright desert, with free-sensor scene availability, this chain's
+   quantification floor is ~150 t/h, against a demonstrated community
+   detection floor near 1.0–1.4 t/h.
+
 ### Still open
 
 * Absolute flux is **still not quotable**: gates withhold every run, and the

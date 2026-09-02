@@ -75,6 +75,78 @@ def test_limits_are_honoured_and_come_from_config():
     assert cfg.gates.mask_fraction_limit == 0.15
 
 
+def test_unphysical_mask_wide_enhancement_is_caught():
+    """The gate the controlled-release zero controls justified.
+
+    On a METERED-ZERO release the mask still claimed 8,667 ppb mean -- 4.8x
+    the ambient column, sustained mask-wide. No point source can do that.
+    """
+    rng = np.random.default_rng(20270307)
+    field = _field(rng, 10.0)
+    mask = np.zeros(field.shape, bool)
+    mask[40:60, 40:60] = True
+    field[mask] = 8667.0  # the measured Ehrenberg zero-control value
+
+    v = evaluate_gates(field, mask)
+
+    assert v.artifact_dominated
+    assert any("unphysical" in r for r in v.reasons)
+    assert v.mean_enhancement_ppb == pytest.approx(8667.0)
+
+
+def test_plausible_plume_enhancement_passes_the_physical_gate():
+    """A catalog-consistent plume sits an order of magnitude under the limit."""
+    rng = np.random.default_rng(1)
+    field = _field(rng, 10.0)
+    mask = np.zeros(field.shape, bool)
+    mask[40:50, 40:50] = True
+    field[mask] = 170.0  # what a 26 t/h plume needs over such a mask
+
+    v = evaluate_gates(field, mask)
+
+    assert not v.artifact_dominated
+    assert v.mean_enhancement_ppb == pytest.approx(170.0)
+
+
+def test_physical_gate_is_a_multiple_of_the_ambient_column():
+    rng = np.random.default_rng(2)
+    field = _field(rng, 10.0)
+    mask = np.zeros(field.shape, bool)
+    mask[10:20, 10:20] = True
+    field[mask] = 2500.0  # 1.39x the 1800 ppb ambient column
+
+    assert evaluate_gates(field, mask).artifact_dominated
+    # a caller who deliberately widens the bound is allowed to
+    assert not evaluate_gates(
+        field, mask, max_mean_enhancement_ratio=2.0
+    ).artifact_dominated
+
+
+def test_every_controlled_release_run_would_now_be_caught():
+    """Regression over the measured 2026-08-25 values, zero and non-zero alike."""
+    measured = {
+        "casa_grande zero": 1361.0,
+        "ehrenberg zero": 8667.0,
+        "ehrenberg 7.2 t/h": 11718.0,
+        "ehrenberg 5.0 t/h": 9341.0,
+    }
+    rng = np.random.default_rng(3)
+    for label, mean_ppb in measured.items():
+        field = _field(rng, 600.0)  # the measured sigma regime
+        mask = np.zeros(field.shape, bool)
+        mask[30:50, 30:50] = True
+        field[mask] = mean_ppb
+        v = evaluate_gates(field, mask)
+        assert v.artifact_dominated, label
+
+
+def test_empty_mask_leaves_enhancement_undefined_not_zero():
+    rng = np.random.default_rng(4)
+    v = evaluate_gates(_field(rng, 10.0), np.zeros((120, 120), bool))
+    assert np.isnan(v.mean_enhancement_ppb)
+    assert not v.artifact_dominated
+
+
 def test_shape_mismatch_is_an_error():
     with pytest.raises(ValueError, match="shapes differ"):
         evaluate_gates(np.zeros((4, 4)), np.zeros((5, 5), bool))
