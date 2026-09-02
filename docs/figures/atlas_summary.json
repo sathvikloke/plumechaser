@@ -1,0 +1,189 @@
+{
+  "generated_at": "2026-09-02T03:10:41.302688+00:00",
+  "generator": "scripts/make_atlas.py",
+  "inputs": {
+    "config": "config/default.yaml",
+    "rtm_calibration": "config/rtm_calibration.json",
+    "controlled_release_truth": "config/controlled_release_truth.json",
+    "bundles": "bundles"
+  },
+  "settings": {
+    "k_roc": 3.0,
+    "pixel_size_m": 20,
+    "min_blob_pixels": 25,
+    "min_blob_pixels_is_a_function_default": true,
+    "min_blob_pixels_rationale": "tropomi.min_blob_pixels=3 is calibrated for 1113 m pixels; at 20 m it is single-pixel noise. See atlas.limits.S2_MIN_BLOB_PIXELS.",
+    "assumed_sigma_col_ppb_for_contrast": {
+      "homogeneous_arid": 12.0,
+      "heterogeneous": 25.0
+    }
+  },
+  "provisional_note": "PROVISIONAL: each sigma is ONE scene (n=1), not a climatology. Not a basin or seasonal average.",
+  "measured_scenes": [
+    {
+      "key": "korpezhe_2026-08-03_cloudscreened_50d",
+      "label": "korpezhe 2026-08-03 (cloud-screened, 50 d baseline, n=1)",
+      "basin": "korpezhe",
+      "surface_class": "homogeneous_arid",
+      "date": "2026-08-03",
+      "n_scenes": 1,
+      "provisional": true,
+      "source_run": "EVT-20260805-K26-MARSS2L-v6",
+      "source_run_status": "quotable",
+      "geometry_source": "scene_timestamp",
+      "satellite": "S2B",
+      "sza_deg": 27.62,
+      "vza_deg": 5.0,
+      "u10_ms": 3.78,
+      "surface_pressure_hpa": 1013.0,
+      "typical_plume_length_m": 800.0,
+      "sigma_log_ratio_measured": 0.0069,
+      "sigma_col_ppb_measured_at_geometry": 472.9,
+      "sigma_col_ppb_recorded_by_gates": null,
+      "sigma_col_ppb_assumed_literature": 12.0,
+      "qmin_t_h_at_own_wind": 0.62,
+      "qmin_t_h_by_min_pixels": {
+        "9": 0.223,
+        "25": 0.62,
+        "100": 2.48
+      }
+    },
+    {
+      "key": "korpezhe_2026-08-03_unscreened_50d",
+      "label": "korpezhe 2026-08-03 (UNSCREENED, 50 d baseline, n=1) [DIAGNOSTIC RUN]",
+      "basin": "korpezhe",
+      "surface_class": "homogeneous_arid",
+      "date": "2026-08-03",
+      "n_scenes": 1,
+      "provisional": true,
+      "source_run": "EVT-20260805-K26-MARSS2L-v5",
+      "source_run_status": "diagnostic",
+      "geometry_source": "scene_timestamp",
+      "satellite": "S2B",
+      "sza_deg": 27.62,
+      "vza_deg": 5.0,
+      "u10_ms": 3.78,
+      "surface_pressure_hpa": 1013.0,
+      "typical_plume_length_m": 800.0,
+      "sigma_log_ratio_measured": 0.0508,
+      "sigma_col_ppb_measured_at_geometry": 4142.0,
+      "sigma_col_ppb_recorded_by_gates": 1073.72,
+      "sigma_col_ppb_assumed_literature": 12.0,
+      "qmin_t_h_at_own_wind": 5.43,
+      "qmin_t_h_by_min_pixels": {
+        "9": 1.955,
+        "25": 5.43,
+        "100": 21.722
+      }
+    },
+    {
+      "key": "permian_2026-04-24_cloudscreened_30d",
+      "label": "permian 2026-04-24 (cloud-screened, 30 d baseline, n=1)",
+      "basin": "permian",
+      "surface_class": "heterogeneous",
+      "date": "2026-04-24",
+      "n_scenes": 1,
+      "provisional": true,
+      "source_run": "EVT-20260427-P82-MARSS2L-v4",
+      "source_run_status": "quotable",
+      "geometry_source": "scene_timestamp",
+      "satellite": "S2B",
+      "sza_deg": 26.07,
+      "vza_deg": 5.0,
+      "u10_ms": 5.445,
+      "surface_pressure_hpa": 950.0,
+      "typical_plume_length_m": 1200.0,
+      "sigma_log_ratio_measured": 0.0552,
+      "sigma_col_ppb_measured_at_geometry": 4607.4,
+      "sigma_col_ppb_recorded_by_gates": 1812.15,
+      "sigma_col_ppb_assumed_literature": 25.0,
+      "qmin_t_h_at_own_wind": 4.999,
+      "qmin_t_h_by_min_pixels": {
+        "9": 1.8,
+        "25": 4.999,
+        "100": 19.996
+      }
+    }
+  ],
+  "floors": {
+    "community_detection": {
+      "label": "COMMUNITY DETECTION FLOOR 1.0-1.4 t/h \u2014 DEMONSTRATED BY PUBLISHED TEAMS (Sherwin et al. 2023/2024), NOT BY US",
+      "low_t_h": 1.047,
+      "high_t_h": 1.387,
+      "n": 2,
+      "attribution": "published by others (measured)",
+      "caveats": [
+        "The widely quoted '1-3 t/h' is a vendor/literature figure in Sherwin 2023,",
+        "NOT a measurement from these tests. Empirically demonstrated: 1.4 t/h",
+        "(2021, 3 of 4 teams) and 1.05 t/h (2022, Orbio, to within +/-47%). The",
+        "authors call the smallest detected emission 'a rough upper bound on the",
+        "lower detection capabilities' and warn that the known-location design may",
+        "have boosted sensitivity beyond general practice. The 2022 campaign never",
+        "tested S2 between 0.005 and 1.05 t/h, so the floor is unconstrained there."
+      ],
+      "members": [
+        {
+          "source": "ehrenberg_2021",
+          "t_h": 1.387
+        },
+        {
+          "source": "casa_grande_2022",
+          "t_h": 1.047
+        }
+      ]
+    },
+    "our_quantification_artifact": {
+      "label": "OUR ARTIFACT FLOOR 146-157 t/h \u2014 spurious flux THIS CHAIN reports on METERED-ZERO scenes (n=2).\nA LIMITATION OF OUR PIPELINE, NOT A MEASUREMENT OF AN EMISSION. All of it was withheld by the honesty gates.",
+      "low_t_h": 145.876,
+      "high_t_h": 156.609,
+      "n": 2,
+      "attribution": "ours (measured, artifact)",
+      "caveats": [
+        "Every value is a false positive on a scene metered at zero emission.",
+        "Quantification was withheld on all of them; none was ever reported as a flux.",
+        "The mechanism is mask-wide mean enhancement of 1,361-8,667 ppb, up to 4.8x the entire ambient column \u2014 surface/infrastructure structure, not gas."
+      ],
+      "members": [
+        {
+          "source": "CR-casa_grande_2022-20221125",
+          "t_h": 145.876
+        },
+        {
+          "source": "CR-ehrenberg_2021-20211101",
+          "t_h": 156.609
+        }
+      ]
+    }
+  },
+  "targets": {
+    "metered_controlled_releases_t_h": {
+      "low": 1.047,
+      "high": 7.176,
+      "n": 10,
+      "attribution": "Stanford/EDF metered truth (Sherwin et al. 2023/2024)"
+    },
+    "catalog_by_basin": {
+      "korpezhe": {
+        "n": 4,
+        "min_t_h": 16.0,
+        "median_t_h": 32.5,
+        "max_t_h": 50.0,
+        "attribution": "published CAMS/SRON weekly catalog (data_methane_explorer.csv)"
+      },
+      "permian": {
+        "n": 114,
+        "min_t_h": 6.0,
+        "median_t_h": 35.0,
+        "max_t_h": 409.0,
+        "attribution": "published CAMS/SRON weekly catalog (data_methane_explorer.csv)"
+      },
+      "region_c": {
+        "n": 59,
+        "min_t_h": 5.0,
+        "median_t_h": 22.0,
+        "max_t_h": 72.0,
+        "attribution": "published CAMS/SRON weekly catalog (data_methane_explorer.csv)"
+      }
+    }
+  }
+}

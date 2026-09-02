@@ -389,8 +389,20 @@ def main(argv=None) -> int:
     )
     ratio_arr = np.asarray(mbmp.values if hasattr(mbmp, "values") else mbmp)
     finite_ratio = ratio_arr[np.isfinite(ratio_arr)]
-    print(f"MBMP ratio: median {np.median(finite_ratio):.4f} "
-          f"MAD-sigma {np.std(finite_ratio):.4f}")
+    # Two spreads, because they differ by 2-4x on artifact-laden scenes and
+    # conflating them silently corrupts anything downstream that is linear in
+    # sigma -- the observability atlas above all.
+    #   std     : inflated by the artifact tail; an UPPER bound on the noise.
+    #   robust  : MAD x 1.4826 over valid pixels, the same estimator the
+    #             honesty gates use, and the one to quote as scene noise.
+    from plumechaser.retrieve.mbmp import robust_scene_sigma
+
+    ratio_std = float(np.std(finite_ratio))
+    log_ratio = -np.log(np.where(ratio_arr > 0, ratio_arr, np.nan))
+    lr_valid = log_ratio[valid_np & np.isfinite(log_ratio)]
+    sigma_log_ratio = float(robust_scene_sigma(lr_valid, floor_ppb=0.0))
+    print(f"MBMP ratio: median {np.median(finite_ratio):.4f} | "
+          f"std {ratio_std:.4f} | robust sigma_log_ratio {sigma_log_ratio:.4f}")
 
     # ---- MARS-S2L segmentation model --------------------------------------
     from marss2l.loaders import BANDS_S2_IN_L8
@@ -597,6 +609,8 @@ def main(argv=None) -> int:
         "background_candidates_tried": tried,
         "input_scale": "DN (TOA reflectance x 10000)",
         "cloud_screening": cloud_note,
+        "sigma_log_ratio_robust": round(sigma_log_ratio, 6),
+        "sigma_log_ratio_std": round(ratio_std, 6),
         "valid_fraction": round(valid_frac, 4),
         "gates": (gate.as_dict() if gate is not None else None),
         "delineation": delin,

@@ -101,10 +101,22 @@ atlas:
   typical_plume_length_m:
     homogeneous_arid: 800
     heterogeneous: 1200
-  # Band-ratio noise measured on real campaigns, 1-sigma, MAD-based, over
-  # plume-free pixels. Calibration-independent by construction (see
-  # retrieve/calibration.py); convert to ppb per scene geometry with
-  # atlas.limits.sigma_col_ppb_from_log_ratio.
+  # Band-ratio noise measured on real campaigns. Calibration-independent by
+  # construction (see retrieve/calibration.py); convert to ppb per scene
+  # geometry with atlas.limits.sigma_col_ppb_from_log_ratio.
+  #
+  # CORRECTION 2026-08-26: these three values are the STANDARD DEVIATION of
+  # the ratio field, not a robust MAD sigma — the campaign script printed
+  # np.std under a "MAD-sigma" label and the mislabelled number was recorded
+  # here. Standard deviation is inflated by the artifact tail, so on these
+  # scenes it runs 2.5–3.9x above the robust estimator the honesty gates use
+  # (evidence: gate sigma_col 1073.7 and 1812.2 ppb versus 4142 and 4607 ppb
+  # obtained by pushing these values through the RTM curve).
+  #
+  # TREAT THESE AS UPPER BOUNDS. Anything linear in sigma — the atlas Q_min
+  # above all — is correspondingly pessimistic. The script now records
+  # `sigma_log_ratio_robust` in every bundle; replace these with the robust
+  # values once the affected scenes have been re-run, and drop this note.
   #
   # PROVISIONAL: each entry is a SINGLE scene, not a climatology. The atlas
   # needs per-basin x season distributions, which needs many more scenes than
