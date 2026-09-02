@@ -441,14 +441,38 @@ def main(argv=None) -> int:
                   f"flux mask px {int(mask_for_flux.sum())} "
                   f"(was {int(bm.sum())})")
         # Honesty gates apply to production retrievals too (plan section 7).
-        from plumechaser.retrieve.gates import evaluate_gates
+        # The ppb limit must match the scale of the field being gated: this
+        # is an RTM retrieval, whose columns run several times larger than
+        # our simplified chain's for the same physical noise. Convert the
+        # calibration-independent anchor at this scene's geometry rather than
+        # comparing against the simplified chain's 80 ppb.
+        from plumechaser.retrieve.calibration import (
+            CalibrationError,
+            load_calibration,
+        )
+        from plumechaser.retrieve.gates import (
+            evaluate_gates,
+            sigma_ppb_limit_for_scale,
+        )
+
+        sigma_limit = cfg.gates.sigma_col_ppb_limit
+        scale_note = "simplified-chain limit (RTM calibration unavailable)"
+        try:
+            cal = load_calibration(REPO / "config" / "rtm_calibration.json")
+            sigma_limit = sigma_ppb_limit_for_scale(
+                cal.c1(sat, sza, vza), cfg.gates.sigma_log_ratio_limit)
+            scale_note = (f"RTM scale at SZA={sza:.1f} VZA={vza:.1f} "
+                          f"(anchor {cfg.gates.sigma_log_ratio_limit})")
+        except CalibrationError as exc:
+            print(f"WARNING: {exc}")
 
         gate = evaluate_gates(
             ch4_arr, mask_for_flux.astype(bool), valid=valid_np,
-            sigma_col_ppb_limit=cfg.gates.sigma_col_ppb_limit,
+            sigma_col_ppb_limit=sigma_limit,
             mask_fraction_limit=cfg.gates.mask_fraction_limit,
         )
-        print(f"GATES: sigma_col {gate.sigma_col_ppb:.1f} ppb | "
+        print(f"GATES: sigma_col {gate.sigma_col_ppb:.1f} ppb "
+              f"vs {sigma_limit:.0f} ppb limit [{scale_note}] | "
               f"mask {gate.mask_fraction:.1%} of valid -> {gate.verdict}")
         for reason in gate.reasons:
             print(f"  tripped: {reason}")
@@ -537,6 +561,8 @@ def main(argv=None) -> int:
         "cloud_screening": cloud_note,
         "valid_fraction": round(valid_frac, 4),
         "gates": (gate.as_dict() if gate is not None else None),
+        "gate_sigma_limit_ppb": (round(sigma_limit, 1) if gate is not None else None),
+        "gate_sigma_scale": (scale_note if gate is not None else None),
         "q_output": _round(qout),
         # Kept for the audit trail only; withheld from every headline by rule.
         "q_output_withheld_artifact_dominated": _round(qout_withheld),
