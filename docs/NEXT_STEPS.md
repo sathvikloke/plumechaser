@@ -70,13 +70,27 @@ execution. Total blocking time: ≈3 hours.
       (`max_mean_enhancement_ratio`). The earlier "Permian 1.4x catalog"
       reading is retracted as coincidence.
 
+- [x] Zero controls extended to n=8: **6/8 false detections**, false flux
+      18-157 t/h (median ~120). Supersedes the "~150 t/h" point estimate.
+      Two scenes correctly returned nothing, so the failure is
+      scene-dependent, not unconditional. All six withheld by the gates.
+- [x] Delineation built and tested on REAL pixels: it removes **100%** of the
+      production model's mask (dominant rule: amplitude). Every pixel exceeds
+      2x the ambient column, so the mask is artifact throughout. This refutes
+      "a real plume is hiding inside the mask"; it does NOT prove the scene
+      holds no recoverable plume.
+
 ## Now open
-- [ ] Run the remaining 7 controlled-release overpasses + the 14 no-release
-      Casa Grande scenes as extra zero controls (mgrs now recorded, so the
-      2022-11-28 skip is fixed)
-- [ ] Close the plume-delineation gap: our masks are 1-2 orders of magnitude
-      too large (2,626 px for a 7 t/h release). Published teams hit within
-      ~2x on the same pixels, so this is our chain, not the sensor
+- [ ] **The one experiment that could still close the gap**: derive the
+      candidate mask from the dXCH4 field itself (a few sigma above
+      background, downwind sector, near the known source) rather than from
+      the segmentation model, then delineate and quantify. Answers "is there
+      ANY recoverable plume signal in these pixels?" A null closes it for good.
+- [ ] Re-run the three scenes behind `atlas.measured_sigma_log_ratio` so the
+      config carries the robust sigma rather than std-based upper bounds
+- [ ] `cli.py atlas` still uses placeholder 12/25 ppb seeds; should call
+      `atlas.limits.load_measured_scenes`
+- [ ] Two Casa Grande zero controls timed out on the GCS mirror; re-run
 - [ ] Wire `retrieve/calibration.py` into `real_s2_demo.py` so our own chain
       reports RTM-scale ppb (currently still fixed-alpha)
 - [ ] Per-basin × season σ climatology for the atlas — needs many more

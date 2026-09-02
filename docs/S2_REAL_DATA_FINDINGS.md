@@ -369,6 +369,79 @@ pixels. The gap is plume delineation and analyst QC — a mask of 2,626 px
    quantification floor is ~150 t/h, against a demonstrated community
    detection floor near 1.0–1.4 t/h.
 
+---
+
+## Zero controls at n=8, and a negative result for delineation
+
+### The artifact floor is a distribution, not a point
+
+Eight metered-zero Sentinel-2 scenes have now been run (two zero controls
+plus six no-release Casa Grande overpasses; two more timed out on the GCS
+mirror).
+
+| Scene | Detected? | False flux |
+|---|---|---|
+| Ehrenberg 2021-11-01 | yes (0.998) | 157 t/h |
+| Casa Grande 2022-11-25 | yes (0.996) | 146 t/h |
+| Casa Grande 2022-10-24 | yes | 136 t/h |
+| Casa Grande 2022-10-21 | yes | 111 t/h |
+| Casa Grande 2022-10-19 | yes (0.999) | 34 t/h |
+| Casa Grande 2022-10-11 | yes (0.989) | 18 t/h |
+| Casa Grande 2022-10-14 | **no** (0.352) | — |
+| Casa Grande 2022-10-16 | **no** (0.008) | — |
+
+**False-detection rate 6/8 on scenes with no emission**, and false flux
+spanning **18–157 t/h**. This supersedes the earlier "~150 t/h" point
+estimate, which came from the two largest of eight and was therefore the
+optimistic end of the wrong summary statistic. The honest statement is a
+distribution with a median near 120 t/h, and the two correct nulls matter:
+the failure is frequent but not universal, so it is a property of particular
+scenes rather than an unconditional artefact.
+
+Every one of the six was withheld by the gates.
+
+### Delineation removes 100% of the mask on real pixels
+
+`retrieve/delineate.py` was applied to the real Ehrenberg releases:
+
+| Overpass | Metered | Model mask | After delineation | Dominant rule |
+|---|---|---|---|---|
+| 2021-10-19 | 7.18 t/h | 3,285 px | **0 px** | amplitude |
+| 2021-10-29 | 5.02 t/h | 2,676 px | **0 px** | amplitude |
+
+Every pixel in the production model's mask exceeds twice the ambient methane
+column, so the physical-plausibility rule removes all of them. **The mask
+contains no physically possible plume pixel at all** — it is artifact
+throughout, which is consistent with the mean enhancements of
+8,667–11,718 ppb measured earlier.
+
+**What this does and does not establish.** It refutes the hypothesis that a
+real plume sits inside the model's mask alongside artifact and can be
+separated geometrically. It does **not** establish that the scene contains no
+recoverable plume: a 7 t/h release produces roughly 600 ppb of enhancement,
+and the segmentation model — selecting for large anomalies — may never have
+included those pixels in its mask. Delineation can only ever constrain a
+candidate mask; it cannot recover signal the candidate never contained.
+
+The synthetic test reporting 45.3× → 1.00× therefore validated the machinery
+only. Its true plume was constructed to carry exactly the metered rate, so
+recovering the true mask returned truth by construction. It should not be
+cited as evidence that the gap is closable.
+
+### The one experiment left that could close the gap
+
+Derive the candidate mask from the ΔXCH₄ field itself at plume-plausible
+amplitude — a few σ above background, within the downwind sector, near the
+known source — instead of from the segmentation model, then delineate and
+quantify. That answers the remaining question directly: *is there any
+recoverable plume signal in these pixels at all?* Nothing else in the current
+toolchain can answer it, and a null there would close the question for good.
+
+Supporting evidence that the attempt is worth making, from the atlas: our
+artifact floor sits **27–253× above our own noise-limited floor**, while the
+floor other teams demonstrate on the same pixels sits near it. The headroom
+is real; what is unproven is our ability to reach into it.
+
 ### Still open
 
 * Absolute flux is **still not quotable**: gates withhold every run, and the
