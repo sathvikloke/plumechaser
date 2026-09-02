@@ -21,6 +21,14 @@ hashing, and scoring scripts that touch labels exactly once.
 * **Exploratory:** Region-C coverage tier; incremental value vs archived
   catalogs (stretch).
 
+**Not an endpoint — absolute emission rate.** Amended 2026-08-25 (§9,
+addendum item 5) on measured evidence: against metered controlled releases
+this chain's flux artifact floor is ~150 t/h, above every rate the study
+targets. Absolute rate agreement is therefore **withdrawn as a claimable
+endpoint** and reported only as a characterised negative with its floor. The
+detection endpoints above are unaffected — they never depended on rate
+accuracy.
+
 **Dual-mode interpretation (mandatory in every report):**
 "Strict mode benchmarks against operational human curation; lenient mode
 estimates the algorithmic ceiling; the strict–lenient gap is itself our
@@ -41,9 +49,14 @@ grid (section 5).
 * Cluster bootstrap (block = source cluster) for all CIs; percentile method,
   2000 draws, seed `20270307` recorded per run manifest.
 * Point estimates always from unperturbed inputs.
-* Rate comparison: Bland–Altman restricted to comparable-footprint pairs
-  (S2 vs reference at Varon sites / Carbon Mapper spot checks); pairing
-  caveat stated on figure. TROPOMI-vs-S2 reported as ratio table only.
+* Rate comparison: ~~Bland–Altman restricted to comparable-footprint pairs~~
+  **superseded 2026-08-25.** A Bland–Altman agreement plot presumes the two
+  methods measure the same quantity with comparable error; the controlled
+  releases show ours is dominated by an artifact floor ~20–40× the rates in
+  question, so such a plot would imply an agreement structure that does not
+  exist. Replaced by: (a) the controlled-release table with metered truth,
+  including zero controls, and (b) the artifact-floor figure. TROPOMI-vs-S2
+  remains a ratio table only.
 * ERA5 primary winds; GEOS-FP delta term computed for Korpezhe and reported
   as wind-product uncertainty.
 
@@ -86,13 +99,33 @@ accuracy."
 reported as a first-order observability finding feeding the atlas (D3), not
 a failed validation."
 
+**Extension, 2026-08-25 (§9 item 5).** The same routing applies to
+quantification. A measured inability to quantify, expressed as a floor with
+the evidence that established it, is an observability finding and feeds the
+atlas. It is not a failed validation, and it is not to be presented as one.
+A withheld quantification is the gate system working; the pre-registered
+withholding rule is what makes the floor reportable rather than embarrassing.
+
 ## 8. Success ladder (pre-committed)
+
+Amended 2026-08-25 (§9 item 5). The original Full tier required "rates
+reproduce Varon envelope". That criterion is now known to be unattainable by
+this chain — the artifact floor sits above every rate in question — so
+leaving it in place would freeze a target we have already measured ourselves
+out of. It is replaced by a criterion of equal rigour that the evidence can
+actually settle: characterising the quantification limit rather than meeting
+it. Nothing else in the ladder changes.
 
 | Tier | Criteria |
 |---|---|
-| Full | plan executed; ≥15 clusters; rates reproduce Varon envelope; atlas assembled |
+| Full | plan executed; ≥15 clusters; **quantification floor characterised against metered truth, including zero controls**; atlas assembled |
 | Solid | autonomous pipeline; descriptive agreement; FP protocol complete |
 | Floor | end-to-end demo on Korpezhe + naive-vs-CNN delta + cost/latency analysis |
+
+The Full tier is now *satisfiable on evidence already collected*, which was
+not true of the superseded criterion. This is a reduction in scope of what is
+claimed, not an easing of the bar: it substitutes a measurement we have made
+for one we cannot make.
 
 Kill dates: Dec 15 autonomy · Feb 1 results tabulated · Mar 1 content freeze.
 
@@ -171,6 +204,21 @@ Kill dates: Dec 15 autonomy · Feb 1 results tabulated · Mar 1 content freeze.
      detection agreement, not rate agreement. It does mean the Bland–Altman
      rate comparison in §4 is expected to be reportable only as a negative
      result unless the plume-delineation gap closes.
+
+     **Consequential amendments made under this item, all pre-freeze:**
+     §2 withdraws absolute rate agreement as a claimable endpoint; §4 retires
+     the Bland–Altman rate plot in favour of the controlled-release table and
+     the artifact-floor figure; §7 extends null-result routing to cover a
+     measured quantification limit; §8 replaces the Full-tier criterion
+     "rates reproduce Varon envelope" with "quantification floor
+     characterised against metered truth, including zero controls".
+
+  **SIGN-OFF.** Addendum items 2 (gate reparameterisation) and 5
+  (controlled-release validation, third honesty gate, and the consequential
+  amendments above) were reviewed and approved by Sathvik Loke, project lead,
+  on 2026-08-26, before the 2026-11-01 freeze. Recorded here because a
+  pre-registration amendment is only legitimate if it is dated, justified,
+  and approved *before* the labels are opened — which they have not been.
 
 *(entries appear here only with date + reason)*
 
