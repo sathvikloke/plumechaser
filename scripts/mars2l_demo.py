@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -52,6 +54,10 @@ ALL_L1C_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
                  "B8A", "B09", "B10", "B11", "B12"]
 CLOUDY_CLASSES = (1, 2, 3)  # thick cloud, thin cloud, cloud shadow
 RES_M = 20.0
+# Band reads are independent windowed HTTP fetches. Kept modest: the mirror
+# is the shared resource, and hammering it is what produced the read timeouts
+# this retry logic exists to absorb.
+BAND_FETCH_WORKERS = 6
 
 
 def stac_items(lon, lat, d0, d1, max_cloud=20.0):
@@ -233,31 +239,57 @@ def main(argv=None) -> int:
 
     fetch_bands = BANDS if args.no_cloud_mask else ALL_L1C_BANDS
 
+    def _fetch_band(safe, band, attempts=3):
+        """One band's DN array plus its per-pixel validity. Retried.
+
+        The GCS mirror times out often enough that a 13-band campaign run has
+        a meaningful chance of losing at least one read; two controlled-release
+        overpasses were lost that way. Retrying one band is far cheaper than
+        re-running the overpass.
+        """
+        last = None
+        for attempt in range(attempts):
+            try:
+                href, off = band_href(safe, band)
+                arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
+                dn = arr * 1e4
+                nodata = ~np.isfinite(dn)
+                dn = np.nan_to_num(dn, nan=0.0) + off
+                negative = (dn <= 0) & ~nodata
+                ok = ~nodata & ~negative
+                # Invalid pixels go to 0 DN, marss2l's own fill value; the
+                # -1000 the offset produces would feed negative radiances in.
+                dn[~ok] = 0.0
+                return band, dn.astype(np.float32), ok, nodata, negative
+            except Exception as exc:  # noqa: BLE001 - transient network faults
+                last = exc
+                if attempt + 1 < attempts:
+                    time.sleep(2.0 * (attempt + 1))
+        raise RuntimeError(f"{band}: failed after {attempts} attempts: {last}")
+
     def load_bands(safe, quiet=False):
         """DN-scale bands (TOA reflectance x 10000) plus a validity mask.
 
-        vrt_window returns DN * 1e-4 with NaN at nodata; we return to DN,
-        apply the per-band baseline >= 05 offset, and mark anything that is
-        non-finite or non-positive after the offset as invalid.
+        Bands are fetched concurrently: each one is an independent windowed
+        HTTP read, so this is I/O-bound and the wall-clock cost of a scene is
+        set by the slowest band rather than their sum. Results are reassembled
+        in a fixed order, so the output does not depend on completion order.
         """
         chans: dict[str, np.ndarray] = {}
+        stats: dict[str, tuple[float, float]] = {}
         valid = None
-        for band in fetch_bands:
-            href, off = band_href(safe, band)
-            arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
-            dn = arr * 1e4
-            nodata = ~np.isfinite(dn)
-            dn = np.nan_to_num(dn, nan=0.0) + off
-            negative = (dn <= 0) & ~nodata
-            ok = ~nodata & ~negative
-            # Invalid pixels go to 0 DN, marss2l's own fill value; leaving the
-            # -1000 the offset produces would feed negative radiances in.
-            dn[~ok] = 0.0
-            if not quiet:
-                print(f"    {band}: nodata {nodata.mean():>6.1%} | "
-                      f"negative-after-offset {negative.mean():>6.1%}")
-            chans[band] = dn.astype(np.float32)
-            valid = ok if valid is None else (valid & ok)
+        with ThreadPoolExecutor(max_workers=BAND_FETCH_WORKERS) as pool:
+            futures = {pool.submit(_fetch_band, safe, b): b for b in fetch_bands}
+            for fut in as_completed(futures):
+                band, dn, ok, nodata, negative = fut.result()
+                chans[band] = dn
+                stats[band] = (float(nodata.mean()), float(negative.mean()))
+                valid = ok if valid is None else (valid & ok)
+        if not quiet:
+            for band in fetch_bands:  # deterministic report order
+                nd, neg = stats[band]
+                print(f"    {band}: nodata {nd:>6.1%} | "
+                      f"negative-after-offset {neg:>6.1%}")
         return chans, valid
 
     def clear_mask(chans):
