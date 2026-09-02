@@ -27,6 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from plumechaser.config import config_sha256, load_config  # noqa: E402
+from plumechaser.report.status import STATUS_QUOTABLE, bundle_status  # noqa: E402
 from plumechaser.retrieve.flux_audit import (  # noqa: E402
     audit_q_output,
     first_principles_kg_m2_per_ppb,
@@ -111,6 +112,9 @@ def main(argv=None) -> int:
         row["scene_score"] = meta.get("scene_score")
         row["quantification_withheld"] = withheld
         row["gates"] = meta.get("gates")
+        # This is the one tool that deliberately reads retracted bundles, so
+        # it is also the one place a withdrawn flux could print unlabelled.
+        row["result_status"] = bundle_status(meta, prov.parent.name)
         rows.append(row)
 
     if not rows:
@@ -125,7 +129,12 @@ def main(argv=None) -> int:
     for r in rows:
         cat = "n/a" if r["catalog_t_h"] is None else f"{r['catalog_t_h']:.0f}"
         rat = "n/a" if r["ratio_to_catalog"] is None else f"{r['ratio_to_catalog']:.1f}"
-        flag = "  [WITHHELD]" if r["quantification_withheld"] else ""
+        marks = []
+        if r["result_status"] != STATUS_QUOTABLE:
+            marks.append(r["result_status"].upper())
+        if r["quantification_withheld"]:
+            marks.append("WITHHELD")
+        flag = ("  [" + " / ".join(marks) + "]") if marks else ""
         print(f"{r['event_id']:<34}{r['q_t_h']:>9.1f}{cat:>7}{rat:>7}"
               f"{r['mean_enhancement_ppb']:>10.0f}{r['plume_area_km2']:>10.2f}"
               f"{r['mask_fraction'] * 100:>7.1f}%{flag}")

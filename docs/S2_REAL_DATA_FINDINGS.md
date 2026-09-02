@@ -223,7 +223,28 @@ Those scores were produced from inputs at the wrong scale. Corrected:
 Korpezhe v6 is therefore **not a clean null for the event** — it is a
 scene-unavailability result, and belongs in the observability atlas as such.
 
-### Second finding: our simplified alpha is ~5× off
+### Second finding: our simplified alpha is ~5× off — now measured and fixed
+
+**Update 2026-08-25 (later same day):** the estimate below came from three
+spot samples. `scripts/calibrate_alpha.py` now measures the full curve over
+SZA 10–70°, VZA 0–10°, both platforms (42 geometries, cubic fit, worst
+residual 1.4%; stored in `config/rtm_calibration.json`).
+
+Measured result: our simplified coefficients **understate methane columns by
+2.5× to 6.3×, median 4.4×**, driven almost entirely by solar zenith angle —
+viewing zenith moves it under 5%. The spread matters: a single scalar
+correction would be wrong by a factor of 2.5 across the observing envelope,
+which is why `retrieve/calibration.py` stores a geometry-dependent curve
+rather than a replacement constant. The RTM is also markedly non-linear, so
+a purely linear coefficient understates strong plumes by tens of percent on
+top of the scale error.
+
+The gate threshold problem this created is resolved by anchoring the gate on
+fractional band-ratio noise instead of ppb — see
+`docs/ANALYSIS_PLAN.md` §9, addendum 2026-08-25. The pre-registered operating
+point is unchanged.
+
+*Original spot-check estimate, retained for the record:*
 
 Sampling marss2l's RTM LUT (`TransmittanceCH4InterpolationFromDict`) near
 ratio ≈ 1 gives an effective absorption coefficient of **1.4e-5 – 2.0e-5

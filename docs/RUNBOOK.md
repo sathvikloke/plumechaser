@@ -117,6 +117,8 @@ Two Python environments exist:
 | `scripts/real_s2_demo.py` | our simplified MBMP chain on real S2 pixels (GCS L1C / AWS L2A), honesty gates, Gate-B injection | .venv |
 | `scripts/mars2l_demo.py` | UNEP MARS-S2L production inference on same events (detection + flux; honesty-gated) | .venv-mars |
 | `scripts/flux_audit.py` | offline decomposition of every recorded flux into mean-enhancement × sqrt(area) | .venv |
+| `scripts/calibrate_alpha.py` | measure our simplified alpha against the production RTM LUT; writes `config/rtm_calibration.json` | .venv-mars |
+| `scripts/controlled_release.py` | run against METERED controlled releases (Sherwin 2023/2024) — the only known-truth validation we have | .venv-mars |
 | `scripts/make_figures.py` | paper figures from real data | .venv |
 | `scripts/freeze.py` | freeze ceremony (dry-run first!) | .venv |
 | `scripts/smoke_check.py` | 10-second synthetic sanity run | .venv |
@@ -136,3 +138,28 @@ Campaign findings + open flux-audit items:
 * L1C `RADIO_ADD_OFFSET` has **13** band_ids including B10:
   B10=10, **B11=11, B12=12**. The L2A ordering (B11=10, B12=11) is wrong
   for the L1C products the GCS mirror serves.
+* Nodata pixels driven negative by the −1000 offset must be excluded AND
+  filled with 0 DN. Left negative, a *pair* of them forms a finite positive
+  band ratio that the log-ratio retrieval accepts as signal.
+* ppb is **not** comparable between retrieval chains — our simplified alpha
+  understates columns 2.5–6.3× versus the RTM. Compare in the band-ratio
+  domain, or convert through `retrieve/calibration.py`.
+
+### Controlled-release validation
+
+`config/controlled_release_truth.json` holds metered per-overpass rates for
+the Stanford/EDF single-blind tests (Ehrenberg 2021, Casa Grande 2022),
+extracted from the papers' data repositories — the PDFs publish only
+aggregates. Two flags are mandatory there and exist for correctness, not
+convenience:
+
+* `--exact-date` — a neighbouring overpass carries a different release, so
+  the nearest-scene fallback would compare against the wrong truth.
+* `--exclude-background START:END` — the campaign window may not supply the
+  background scene, or the reference carries its own plume and partially
+  cancels the target's.
+
+```bash
+python scripts/controlled_release.py --list
+python scripts/controlled_release.py --kind zero_control
+```

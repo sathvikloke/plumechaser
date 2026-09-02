@@ -1,0 +1,110 @@
+{
+  "_comment": [
+    "Metered ground truth for Sentinel-2 overpasses of the Stanford/EDF",
+    "single-blind controlled-release tests. This is the only dataset in the",
+    "project where the true emission rate is KNOWN rather than inferred from",
+    "another satellite's catalog, which makes it the correct instrument for",
+    "closing the absolute-flux audit (docs/S2_REAL_DATA_FINDINGS.md).",
+    "",
+    "Rates are the metered 5-minute mean CH4 mass flow preceding the overpass,",
+    "in kg/h. Extracted from the papers' data repositories, NOT from the PDFs:",
+    "the papers publish only aggregates. The extraction was validated against",
+    "published SI Table S8 detection counts (28/28 cells match) and against",
+    "the papers' quoted extremes (7.2 [6.8, 7.6] t/h max; 1.4 [1.3, 1.5] t/h",
+    "smallest 2021 detection; 1.19 [1.15, 1.23] and 1.05 [0.99, 1.10] t/h in",
+    "2022).",
+    "",
+    "PLATFORM AND MGRS TILE ARE DEliberately ABSENT: no source states them.",
+    "Resolve from the UTC timestamp against the Copernicus/GCS catalogue."
+  ],
+  "citation": [
+    "Sherwin, E.D. et al. (2023) Single-blind validation of space-based",
+    "point-source detection and quantification of onshore methane emissions.",
+    "Scientific Reports 13:3836. doi:10.1038/s41598-023-30761-2",
+    "Sherwin, E.D. et al. (2024) Single-blind test of nine methane-sensing",
+    "satellite systems from three continents. Atmos. Meas. Tech. 17:765-782.",
+    "doi:10.5194/amt-17-765-2024"
+  ],
+  "data_sources": [
+    "https://github.com/esherwin/SatelliteTesting (2021, branch master): Data/matchedDF_Satellites_230130.csv",
+    "https://github.com/sahar-elabbadi/SU-Controlled-Releases-2022 (branch publish): Satellite_overpasses_with_release_rates_20230404.csv",
+    "Zenodo archive of the 2022 deposit: https://doi.org/10.5281/zenodo.10149991"
+  ],
+  "detection_limit_note": [
+    "The widely quoted '1-3 t/h' is a vendor/literature figure in Sherwin 2023,",
+    "NOT a measurement from these tests. Empirically demonstrated: 1.4 t/h",
+    "(2021, 3 of 4 teams) and 1.05 t/h (2022, Orbio, to within +/-47%). The",
+    "authors call the smallest detected emission 'a rough upper bound on the",
+    "lower detection capabilities' and warn that the known-location design may",
+    "have boosted sensitivity beyond general practice. The 2022 campaign never",
+    "tested S2 between 0.005 and 1.05 t/h, so the floor is unconstrained there."
+  ],
+  "campaigns": [
+    {
+      "name": "ehrenberg_2021",
+      "site": "Ehrenberg, Arizona",
+      "lat": 33.630645,
+      "lon": -114.489150,
+      "release_height_m_agl": 5,
+      "coordinates_note": "Release stack. Operators were instead given 33.630637, -114.487755 (~130 m east).",
+      "window_start": "2021-10-16",
+      "window_end": "2021-11-03",
+      "overpasses": [
+        {"date": "2021-10-19", "utc": "18:24:58", "kg_h": 7176.0, "ci95": [6796.0, 7585.0], "kind": "release"},
+        {"date": "2021-10-22", "utc": "18:34:54", "kg_h": 1675.0, "ci95": [1585.0, 1771.0], "kind": "release"},
+        {"date": "2021-10-24", "utc": "18:25:02", "kg_h": 3993.0, "ci95": [3779.0, 4218.0], "kind": "release", "note": "filtered by all four teams (cloud)"},
+        {"date": "2021-10-27", "utc": "18:34:57", "kg_h": 3496.0, "ci95": [3309.0, 3694.0], "kind": "release"},
+        {"date": "2021-10-29", "utc": "18:24:58", "kg_h": 5019.0, "ci95": [4751.0, 5309.0], "kind": "release"},
+        {"date": "2021-11-01", "utc": "18:34:54", "kg_h": 0.0, "ci95": [0.0, 0.0], "kind": "zero_control"},
+        {"date": "2021-11-03", "utc": "18:25:01", "kg_h": 1387.0, "ci95": [1312.0, 1467.0], "kind": "release"}
+      ]
+    },
+    {
+      "name": "casa_grande_2022",
+      "site": "Casa Grande, Arizona",
+      "lat": 32.8218205,
+      "lon": -111.7857730,
+      "window_start": "2022-10-10",
+      "window_end": "2022-11-30",
+      "uncertainty_note": "Source file gives 1-sigma; the papers' brackets are mean +/- 2 sigma.",
+      "overpasses": [
+        {"date": "2022-10-26", "utc": "18:15:09", "kg_h": 1047.0, "sigma": 28.6, "kind": "release"},
+        {"date": "2022-11-08", "utc": "18:25:06", "kg_h": 1190.1, "sigma": 18.6, "kind": "release"},
+        {"date": "2022-11-15", "utc": "18:15:09", "kg_h": 1495.7, "sigma": 21.2, "kind": "release"},
+        {"date": "2022-11-18", "utc": "18:25:03", "kg_h": 1428.4, "sigma": 22.7, "kind": "release"},
+        {"date": "2022-11-25", "utc": "18:15:06", "kg_h": 0.0, "sigma": 0.0, "kind": "zero_control"},
+        {"date": "2022-11-28", "utc": "18:25:02", "kg_h": 4.95, "sigma": 0.03, "kind": "zero_control", "note": "0.005 t/h; the authors treat non-detection here as a true negative"},
+
+        {"date": "2022-10-11", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-14", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-16", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-19", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-21", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-24", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-29", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-10-31", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-03", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-10", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-13", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-20", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-23", "kg_h": 0.0, "kind": "no_release"},
+        {"date": "2022-11-30", "kg_h": 0.0, "kind": "no_release"}
+      ],
+      "void_overpasses": [
+        {"date": "2022-10-18", "utc": "17:49", "reason": "release cancelled, system malfunction"},
+        {"date": "2022-11-05", "utc": "18:14", "reason": "release cancelled, system malfunction"}
+      ]
+    }
+  ],
+  "kind_semantics": {
+    "release": "metered non-zero release; compare our retrieved rate against kg_h",
+    "zero_control": "release rig present, metered ~zero; any flux we report is false",
+    "no_release": [
+      "Stanford ran no release for these 2022 overpasses (SI S2.7 miscommunication).",
+      "The papers EXCLUDE them from all analysis. We treat them as additional zero",
+      "controls, which is OUR inference, not the papers': no release means no source.",
+      "Label them as such in any output."
+    ],
+    "void": "release cancelled mid-campaign; not a zero control, simply unusable"
+  }
+}

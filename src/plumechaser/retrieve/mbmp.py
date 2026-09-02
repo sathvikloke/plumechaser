@@ -36,8 +36,13 @@ surface stability, and absence of its own anomalies (see cue/reference.py).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from scipy import ndimage
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .calibration import RtmCalibration
 
 # Molar masses, kg/kmol (IUPAC)
 M_CH4 = 16.043
@@ -72,6 +77,32 @@ def mbmp_enhancement_ppb(
     u_t = log_band_ratio(b11_target, b12_target)
     u_r = log_band_ratio(b11_reference, b12_reference)
     return (u_t - u_r) / (alpha_b12_per_ppb - alpha_b11_per_ppb)
+
+
+def mbmp_enhancement_ppb_rtm(
+    b11_target: np.ndarray,
+    b12_target: np.ndarray,
+    b11_reference: np.ndarray,
+    b12_reference: np.ndarray,
+    calibration: RtmCalibration,
+    satellite: str,
+    sza: float,
+    vza: float,
+) -> np.ndarray:
+    """Enhancement map using the RTM-derived curve instead of a fixed alpha.
+
+    Same differencing as :func:`mbmp_enhancement_ppb`, but the conversion from
+    log-ratio to ppb comes from ``retrieve.calibration``, which is
+    geometry-dependent and non-linear. Prefer this wherever the observation
+    geometry is known; the fixed-alpha form understates columns by 2.5-6.3x
+    (2026-08-25 audit) and is retained for the educational/fallback path.
+    """
+    u_t = log_band_ratio(b11_target, b12_target)
+    u_r = log_band_ratio(b11_reference, b12_reference)
+    return np.asarray(
+        calibration.ppb_from_log_ratio(u_t - u_r, satellite, sza, vza),
+        dtype=np.float64,
+    )
 
 
 def robust_scene_sigma(field: np.ndarray, floor_ppb: float = 2.0) -> float:

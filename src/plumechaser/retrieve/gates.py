@@ -27,7 +27,34 @@ import numpy as np
 
 from .mbmp import robust_scene_sigma
 
-__all__ = ["GateVerdict", "evaluate_gates"]
+__all__ = ["GateVerdict", "evaluate_gates", "sigma_ppb_limit_for_scale"]
+
+
+def sigma_ppb_limit_for_scale(
+    c1_ppb_per_log_ratio: float,
+    sigma_log_ratio_limit: float,
+) -> float:
+    """Convert the calibration-independent gate anchor into a ppb limit.
+
+    The pre-registered gate is written as "sigma_col > 80 ppb", but ppb is not
+    a calibration-independent unit: the 2026-08-25 audit measured our
+    simplified coefficients as understating columns by 2.5-6.3x versus the
+    production RTM, so the *same physical scene noise* produced two different
+    verdicts depending on which chain measured it.
+
+    What the gate actually encodes is a limit on fractional band-ratio noise.
+    Anchoring there and converting per-retrieval keeps the pre-registered
+    intent exactly while making the threshold comparable across chains:
+
+        sigma_log_ratio_limit = 80 ppb * (alpha_b12 - alpha_b11)
+                              = 80 * 9.0e-5 = 7.2e-3
+
+    Evaluated on the simplified chain this returns 80 ppb by construction, so
+    nothing about the frozen plan's operating point changes.
+    """
+    if c1_ppb_per_log_ratio <= 0 or sigma_log_ratio_limit <= 0:
+        raise ValueError("calibration slope and limit must both be positive")
+    return float(sigma_log_ratio_limit * c1_ppb_per_log_ratio)
 
 ARTIFACT_VERDICT = "ARTIFACT-DOMINATED — quantification withheld"
 CLEAN_VERDICT = "gates passed — quantification permitted"

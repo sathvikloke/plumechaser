@@ -11,12 +11,25 @@ Sources:
     for band-ratio retrievals (per-pass atmospheric correction); kept only
     for comparison.
 
-Retrieval hygiene implemented here (the two classic killers):
+Retrieval hygiene implemented here (every item burned us at least once;
+see the flux audit in docs/S2_REAL_DATA_FINDINGS.md):
   1. Same-platform target/reference pairing (S2A-vs-S2B SWIR calibration
-     differences do not cancel in band ratios).
-  2. Integer-pixel co-registration of the reference via FFT phase
+     differences do not cancel in band ratios), preferring the same
+     relative orbit -- for one platform those are the passes at exact
+     10-day multiples, which also cancels BRDF. Cross-orbit comparison
+     dates are used only to make up a shortfall, and say so loudly.
+  2. Coverage-aware scene selection: one MGRS tile/day can hold several
+     SAFEs and a granule at the swath edge may cover only part of the
+     tile, so every candidate is probed with one cheap single-band window
+     read before it is accepted (``pick_covering``).
+  3. Sub-pixel co-registration of every comparison pass via FFT phase
      correlation on B11 before differencing.
-Plus baseline >=05 radiometric offsets parsed per-band (ids 10=B11, 11=B12).
+  4. Baseline >=05 radiometric offsets parsed per-band (L1C band_ids
+     B11=11, B12=12; the 13-entry L1C list includes B10, unlike L2A).
+     Nodata pixels, and any pixel the -1000 DN offset drives non-positive,
+     are excluded from the valid mask and filled with 0 DN -- left
+     negative, a pair of them forms a *positive* band ratio that the
+     log-ratio retrieval would accept as signal.
 
 Honesty gates: sigma_col > 80 ppb or plume-mask fraction > 15% marks the run
 ARTIFACT-DOMINATED; no quantification is claimed in that case.
@@ -27,6 +40,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import warnings
+from collections.abc import Callable, Iterable, Sequence
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -43,6 +58,12 @@ ALPHA_11, ALPHA_12 = 3.0e-5, 1.2e-4  # config defaults
 
 SIGMA_ARTIFACT_LIMIT = 80.0
 MASK_FRAC_LIMIT = 0.15
+
+# A granule must cover the retrieval window to be usable at all. Not a
+# science threshold: it is the scene-selection rule shared with
+# scripts/mars2l_demo.py so the two chains cannot disagree about which
+# scenes exist.
+MAX_WINDOW_NODATA = 0.02
 
 
 def _http_json(url: str, params: dict | None = None) -> dict:
@@ -102,6 +123,145 @@ def gcs_band_href(safe: str, mgrs: str, band: str) -> tuple[str, float]:
         lut = {int(b): float(v) for b, v in pairs}
         offset = lut.get(band_id, 0.0)
     return href, offset
+
+
+# ------------------------------------------------------- scene bookkeeping
+
+def safe_platform(safe: str) -> str:
+    """Platform id (S2A/S2B/S2C) from a SAFE directory name."""
+    return safe.split("_")[0]
+
+
+def rel_orbit(safe: str) -> str:
+    """Relative-orbit token (``Rnnn``) of a SAFE name, ``R???`` when absent.
+
+    Same platform *and* same relative orbit means the same viewing geometry,
+    so BRDF cancels in the band ratio; for a single platform those are the
+    passes separated by exact 10-day multiples.
+    """
+    return next((p for p in safe.split("_")
+                 if len(p) == 4 and p[0] == "R" and p[1:].isdigit()), "R???")
+
+
+def window_nodata_frac(window: np.ndarray) -> float:
+    """Fraction of the retrieval window a granule does not actually contain."""
+    return float((~np.isfinite(np.asarray(window, dtype=np.float64))).mean())
+
+
+def pick_covering(
+    safes: Iterable[str],
+    probe: Callable[[str], float],
+    max_nodata: float = MAX_WINDOW_NODATA,
+) -> tuple[str | None, float, bool]:
+    """First SAFE whose pixels actually cover the window, else the best one.
+
+    One MGRS tile/day can hold several SAFEs, and a granule at the swath
+    edge may cover only part of the tile, so ``safes[0]`` is not safe:
+    taking it blindly gave the sibling chain a background missing 43% of the
+    window, which then entered the retrieval as -1000 DN. ``probe(safe)``
+    returns that SAFE's window nodata fraction (one cheap single-band read).
+
+    Returns ``(safe, nodata_frac, covered)``; ``(None, 1.0, False)`` when
+    there is nothing to choose from.
+    """
+    best_safe: str | None = None
+    best_frac = 1.0
+    for safe in safes:
+        frac = probe(safe)
+        if frac <= max_nodata:
+            return safe, frac, True
+        if best_safe is None or frac < best_frac:
+            best_safe, best_frac = safe, frac
+    return best_safe, best_frac, False
+
+
+def dn_with_valid(
+    window: np.ndarray, offset: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """DN-scale band plus validity, with the baseline >=05 offset applied.
+
+    ``vrt_window`` hands back DN * 1e-4 with NaN wherever the granule holds
+    nodata. Restoring DN and adding RADIO_ADD_OFFSET (-1000 for baseline
+    >=05) drives those nodata pixels -- and any genuinely dark pixel below
+    the offset -- negative. Both classes are invalid and must never reach
+    the retrieval: two negative DNs form a *positive* B11/B12 ratio, which
+    the log-ratio retrieval happily accepts as if it were signal. Invalid
+    pixels are dropped from the mask and filled with 0 DN.
+
+    Returns ``(dn, valid, nodata, negative)``.
+    """
+    dn = np.asarray(window, dtype=np.float64) * 1e4
+    nodata = ~np.isfinite(dn)
+    dn = np.nan_to_num(dn, nan=0.0) + float(offset)
+    negative = (dn <= 0) & ~nodata
+    valid = ~nodata & ~negative
+    dn[~valid] = 0.0
+    return dn, valid, nodata, negative
+
+
+def nan_invalid(arr: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    """Copy of ``arr`` with invalid pixels as NaN (the retrieval's sentinel).
+
+    Registration and the log-ratio both treat NaN as "no pixel here"; the
+    0 DN fill from :func:`dn_with_valid` would otherwise register as very
+    dark ground and drag the phase-correlation peak.
+    """
+    out = np.array(arr, dtype=np.float64, copy=True)
+    out[~valid] = np.nan
+    return out
+
+
+def select_references(
+    t_safe: str,
+    t_day: date,
+    safes_on: Callable[[date], Sequence[str]],
+    choose: Callable[[Sequence[str]], tuple[str, float] | None],
+    want: int,
+    min_lag_days: int = 3,
+    max_lag_days: int = 21,
+) -> tuple[list[tuple[date, str, float]], int]:
+    """Comparison scenes for the MBPD median, in preference order.
+
+    Same platform first (S2A/S2B SWIR calibration differences do not cancel
+    in a band ratio), then same relative orbit (BRDF; exact 10-day multiples
+    for one platform). Cross-orbit passes are used only to make up a
+    shortfall — mixing orbits adds variance rather than averaging it down,
+    so the caller warns when any is used.
+
+    ``safes_on(day)`` lists the SAFEs for a day and ``choose(safes)`` returns
+    ``(safe, nodata_frac)`` for the one that covers the retrieval window, or
+    None if none does. Both are injected, which keeps this rule network-free.
+
+    Returns ``(picked, n_same_orbit)``, ``picked`` most recent first as
+    ``[(day, safe, nodata_frac)]``.
+    """
+    plat, orbit = safe_platform(t_safe), rel_orbit(t_safe)
+    days = [t_day - timedelta(days=k)
+            for k in range(min_lag_days, max_lag_days + 1)]
+
+    def gather(candidate_days: Iterable[date], n: int, same_orbit: bool):
+        picked: list[tuple[date, str, float]] = []
+        for day in candidate_days:
+            if len(picked) >= n:
+                break
+            cands = [s for s in safes_on(day)
+                     if safe_platform(s) == plat
+                     and (rel_orbit(s) == orbit) == same_orbit]
+            if not cands:
+                continue
+            chosen = choose(cands)
+            if chosen is not None:
+                picked.append((day, chosen[0], chosen[1]))
+        return picked
+
+    same = gather(days, want, same_orbit=True)
+    picked = list(same)
+    if len(picked) < want:
+        seen = {d for d, _, _ in picked}
+        picked += gather([d for d in days if d not in seen],
+                         want - len(picked), same_orbit=False)
+        picked.sort(key=lambda r: r[0], reverse=True)
+    return picked, len(same)
 
 
 # ------------------------------------------------------------- registration
@@ -247,40 +407,103 @@ def main(argv=None) -> int:
     print(f"MGRS tile: {mgrs}")
 
     # ---- discover target + same-platform reference -----------------------
+    scene_extra: dict = {}
+    # Gate-B synthetic injection exists only on the L1C path, but the recovery
+    # report below reads this unconditionally; initialise it here so
+    # `--source aws-l2a` does not die with a NameError.
+    injected_truth = None
     if args.source == "gcs-l1c":
-        avail: dict[date, str] = {}
-        for off in range(-16, 9):
+        # Both listings and window probes are memoised: gcs_band_href costs
+        # three HTTP calls, and a probed SAFE is usually loaded right after.
+        _href_cache: dict[tuple[str, str], tuple[str, float]] = {}
+        _safes_cache: dict[date, list[str]] = {}
+        _probe_cache: dict[str, float] = {}
+
+        def band_href(safe: str, band: str) -> tuple[str, float]:
+            key = (safe, band)
+            if key not in _href_cache:
+                _href_cache[key] = gcs_band_href(safe, mgrs, band)
+            return _href_cache[key]
+
+        def safes_on(day: date) -> list[str]:
+            if day not in _safes_cache:
+                _safes_cache[day] = gcs_day_safes(mgrs, day.strftime("%Y%m%d"))
+            return _safes_cache[day]
+
+        def probe(safe: str) -> float:
+            """Window nodata fraction of one SAFE (single cheap B12 read)."""
+            if safe not in _probe_cache:
+                href, _ = band_href(safe, "B12")
+                _probe_cache[safe] = window_nodata_frac(
+                    vrt_window(href, args.lon, args.lat, args.half_km))
+            return _probe_cache[safe]
+
+        def choose(safes) -> tuple[str, float] | None:
+            safe, nd, covered = pick_covering(safes, probe)
+            if safe is None:
+                return None
+            if not covered:
+                print(f"  skipped {safe[:44]}...: granule covers only "
+                      f"{1 - nd:.0%} of the retrieval window")
+                return None
+            return safe, nd
+
+        # Target: nearest day to the event whose granule actually covers the
+        # window (days probed outward from the event, earlier date on ties).
+        t_day = t_safe = None
+        t_nd = 1.0
+        for off in sorted(range(-16, 9), key=lambda o: (abs(o), o)):
             d = event_date + timedelta(days=off)
-            safes = gcs_day_safes(mgrs, d.strftime("%Y%m%d"))
-            if safes:
-                avail[d] = safes[0]
+            chosen = choose(safes_on(d))
+            if chosen is not None:
+                t_day, t_safe, t_nd = d, chosen[0], chosen[1]
+                break
+        if t_safe is None:
+            raise SystemExit("no GCS L1C granule covering the retrieval "
+                             f"window near {event_date}")
 
-        def platform(safe: str) -> str:
-            return "S2A" if "S2A" in safe else "S2B"
-
-        t_day = min(avail, key=lambda d: (abs((d - event_date).days),
-                                          abs(d.toordinal())))
-        t_safe = avail[t_day]
-        plat = platform(t_safe)
-        ref_days_all = sorted((d for d, s in avail.items()
-                               if platform(s) == plat and 3 <= (t_day - d).days <= 21),
-                              key=lambda d: -d.toordinal())
-        n_refs = min(args.n_refs, len(ref_days_all))
+        plat, t_orbit = safe_platform(t_safe), rel_orbit(t_safe)
+        refs, n_same_orbit = select_references(
+            t_safe, t_day, safes_on, choose, args.n_refs)
+        n_refs = len(refs)
         if n_refs == 0:
             raise SystemExit("no same-platform comparison dates before target")
-        ref_safes = [avail[d] for d in ref_days_all[:n_refs]]
-        print(f"target    : {t_safe} ({t_day}) [{plat}]")
-        for d, s in zip(ref_days_all[:n_refs], ref_safes, strict=False):
-            print(f"comparison: {s} ({d})")
+        ref_safes = [s for _, s, _ in refs]
+        cross_orbit = [s for _, s, _ in refs if rel_orbit(s) != t_orbit]
+        print(f"target    : {t_safe} ({t_day}) [{plat} {t_orbit}] "
+              f"window coverage {1 - t_nd:.0%}")
+        for d, s, nd in refs:
+            print(f"comparison: {s} ({d}) [{rel_orbit(s)}] "
+                  f"coverage {1 - nd:.0%}")
+        if cross_orbit:
+            print(f"WARNING: only {n_same_orbit} same-orbit ({t_orbit}) "
+                  f"comparison date(s) available; falling back to "
+                  f"{len(cross_orbit)} cross-orbit reference(s) "
+                  f"({', '.join(sorted({rel_orbit(s) for s in cross_orbit}))})"
+                  " — BRDF does not cancel across orbits and sqrt(N) "
+                  "averaging does not apply to them")
 
-        def load_pass(safe):
-            h11, o11 = gcs_band_href(safe, mgrs, "B11")
-            h12, o12 = gcs_band_href(safe, mgrs, "B12")
-            b11 = vrt_window(h11, args.lon, args.lat, args.half_km) * 1e4
-            b12 = vrt_window(h12, args.lon, args.lat, args.half_km) * 1e4
-            return ((b11 + o11) / 1e4, (b12 + o12) / 1e4)
+        def load_pass(safe, quiet: bool = True):
+            """(B11, B12, valid) at reflectance scale, offsets applied.
 
-        b11_t, b12_t = load_pass(t_safe)
+            Nodata and any pixel driven non-positive by the baseline >=05
+            offset are excluded from ``valid`` and filled with 0 DN rather
+            than left negative (see :func:`dn_with_valid`).
+            """
+            out = []
+            valid = None
+            for band in ("B11", "B12"):
+                href, off = band_href(safe, band)
+                window = vrt_window(href, args.lon, args.lat, args.half_km)
+                dn, ok, nodata, negative = dn_with_valid(window, off)
+                if not quiet:
+                    print(f"    {band}: nodata {nodata.mean():>6.1%} | "
+                          f"negative-after-offset {negative.mean():>6.1%}")
+                out.append(dn / 1e4)
+                valid = ok if valid is None else (valid & ok)
+            return out[0], out[1], valid
+
+        b11_t, b12_t, valid_t = load_pass(t_safe, quiet=False)
 
         # ---- optional synthetic injection BEFORE registration --------------
         injected_truth = None
@@ -295,23 +518,47 @@ def main(argv=None) -> int:
 
         from plumechaser.retrieve.mbmp import log_band_ratio
 
-        u_t = log_band_ratio(b11_t, b12_t)
+        # Invalid pixels travel as NaN from here on: registration and the
+        # log-ratio both read NaN as "no pixel", while the 0 DN fill would
+        # look like very dark ground.
+        b11_t_r = nan_invalid(b11_t, valid_t)
+        b12_t_r = nan_invalid(b12_t, valid_t)
+        u_t = log_band_ratio(b11_t_r, b12_t_r)
         u_refs = []
         shifts = []
         for i, safe in enumerate(ref_safes):
-            b11_i, b12_i = load_pass(safe)
-            dy, dxp = phase_shift(b11_i, b11_t)
+            b11_i, b12_i, valid_i = load_pass(safe)
+            b11_i = nan_invalid(b11_i, valid_i)
+            b12_i = nan_invalid(b12_i, valid_i)
+            dy, dxp = phase_shift(b11_i, b11_t_r)
             shifts.append((dy, dxp))
             b11_i = shift_array(b11_i, dy, dxp)
             b12_i = shift_array(b12_i, dy, dxp)
             u_refs.append(log_band_ratio(b11_i, b12_i))
             print(f"  ref {i+1}/{n_refs}: {safe} shift=({dy},{dxp})")
-        u_r_med = np.nanmedian(np.stack(u_refs), axis=0)
+        with warnings.catch_warnings():
+            # A pixel invalid in every comparison pass is legitimately NaN
+            # here; that is the answer, not a problem worth a stack of
+            # "All-NaN slice encountered" lines.
+            warnings.simplefilter("ignore", RuntimeWarning)
+            u_r_med = np.nanmedian(np.stack(u_refs), axis=0)
         t_id = t_safe
         r_id = f"{n_refs}-date median ({ref_safes[-1][:15]}..{ref_safes[0][:15]})"
         t_date = t_day
         sensor_note = (f"Sentinel-2 L1C TOA (public GCS mirror); "
-                       f"MBPD {n_refs} comparison dates")
+                       f"MBPD {n_refs} comparison dates "
+                       f"({n_same_orbit} same-orbit {t_orbit}, "
+                       f"{len(cross_orbit)} cross-orbit)")
+        scene_extra = {
+            "target_safe": t_safe,
+            "target_window_coverage": round(1 - t_nd, 4),
+            "comparison_safes": ref_safes,
+            "comparison_window_coverage": [round(1 - nd, 4) for _, _, nd in refs],
+            "platform": plat,
+            "target_relative_orbit": t_orbit,
+            "same_relative_orbit_refs": n_same_orbit,
+            "cross_orbit_refs": [rel_orbit(s) for s in cross_orbit],
+        }
 
     else:
         feats = stac_scenes(args.lon, args.lat,
@@ -344,6 +591,14 @@ def main(argv=None) -> int:
     else:
         dx_map = mbmp_enhancement_ppb(b11_t, b12_t, b11_r, b12_r,
                                       ALPHA_11, ALPHA_12)
+    # Every invalid pixel (nodata, or non-positive after the baseline
+    # offset) is NaN by construction, so this counts real pixels only.
+    valid_frac = float(np.isfinite(dx_map).mean())
+    print(f"valid pixels: {valid_frac:.1%} of the window "
+          f"({int((~np.isfinite(dx_map)).sum())} masked as "
+          f"nodata/negative-DN or uncovered)")
+    if valid_frac < 0.5:
+        print("WARNING: over half the window is invalid — treat with suspicion")
     sigma_col = robust_scene_sigma(dx_map[np.isfinite(dx_map)])
     mask = plume_mask(dx_map, threshold_sigma=3.0)
     mask_frac = float(mask.mean())
@@ -421,6 +676,7 @@ def main(argv=None) -> int:
             f"sensor: {sensor_note}\n"
             f"target: {t_id}\nreference: {r_id}\n"
             f"registration shift (dy,dx): {(dy, dx_px)}\n"
+            f"valid pixels: {valid_frac:.1%}\n"
             f"sigma_col_ppb: {sigma_col:.1f}\n"
             f"alpha_b11/b12_per_ppb: {ALPHA_11}/{ALPHA_12}\n"
             f"honesty_gate: {'ARTIFACT-DOMINATED' if artifact_dominated else 'passed'}"
@@ -431,7 +687,9 @@ def main(argv=None) -> int:
         "sigma_col_ppb": round(sigma_col, 2),
         "plume_pixels": int(mask.sum()),
         "artifact_dominated": artifact_dominated,
+        "valid_fraction": round(valid_frac, 4),
         "calibration": "simplified-alpha demo grade",
+        **scene_extra,
     })
 
     import matplotlib

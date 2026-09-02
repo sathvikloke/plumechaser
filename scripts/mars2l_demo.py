@@ -97,6 +97,15 @@ def main(argv=None) -> int:
                     help="restrict flux IME to continuous_pred > threshold")
     ap.add_argument("--no-cloud-mask", action="store_true",
                     help="skip CloudSEN12 screening (faster: 6 bands not 13)")
+    ap.add_argument("--exact-date", action="store_true",
+                    help="require the target scene to be ON --date. Mandatory "
+                         "for controlled-release work, where a neighbouring "
+                         "overpass carries a different (or zero) release.")
+    ap.add_argument("--exclude-background", default=None, metavar="START:END",
+                    help="ISO date range whose scenes may NOT be used as "
+                         "background, e.g. a controlled-release campaign "
+                         "window. A background inside the window carries its "
+                         "own emission and would cancel the target's.")
     args = ap.parse_args(argv)
 
     from plumechaser.config import load_config
@@ -105,21 +114,38 @@ def main(argv=None) -> int:
     event_date = date.fromisoformat(args.date)
 
     # ---- discovery via STAC (gives dates + cloud + angles) ----------------
-    feats = stac_items(args.lon, args.lat,
-                       event_date - timedelta(days=30),
-                       event_date + timedelta(days=6))
-    t_item, t_date, b_item, b_date = pick_pair(feats, event_date)
-    mgrs = args.mgrs or t_item["id"].split("_")[1]
-    props_t = t_item["properties"]
-    sza = float(props_t.get("s2:mean_solar_zenith",
-              props_t.get("view:sun_elevation") is not None and
-              90.0 - float(props_t["view:sun_elevation"]) or 35.0))
-    vza = float(props_t.get("s2:mean_viewing_zenith", 10.0))
-    sat = "S2A" if t_item["id"].startswith("S2A") else "S2B"
-    print(f"tile {mgrs} | target {t_item['id']} ({t_date}, "
-          f"cloud {props_t['eo:cloud_cover']:.2f}%)")
-    print(f"STAC context only (angles): {b_item['id']} ({b_date}) | "
-          f"SZA={sza:.1f} VZA={vza:.1f}")
+    # STAC supplies observation angles and the tile id only; pixels always
+    # come from the GCS L1C mirror. On archive dates STAC may have no usable
+    # pair, which must not abort a campaign -- fall back to nominal angles and
+    # an explicit --mgrs, and say so, because the angles feed the RTM
+    # calibration and nominal values are a real (documented) approximation.
+    t_item = None
+    mgrs = args.mgrs
+    sza, vza = 35.0, 5.0
+    try:
+        feats = stac_items(args.lon, args.lat,
+                           event_date - timedelta(days=30),
+                           event_date + timedelta(days=6))
+        t_item, stac_t_date, b_item, stac_b_date = pick_pair(feats, event_date)
+        mgrs = args.mgrs or t_item["id"].split("_")[1]
+        props_t = t_item["properties"]
+        sza = float(props_t.get("s2:mean_solar_zenith",
+                  props_t.get("view:sun_elevation") is not None and
+                  90.0 - float(props_t["view:sun_elevation"]) or 35.0))
+        vza = float(props_t.get("s2:mean_viewing_zenith", 10.0))
+        print(f"tile {mgrs} | target {t_item['id']} ({stac_t_date}, "
+              f"cloud {props_t['eo:cloud_cover']:.2f}%)")
+        print(f"STAC context only (angles): {b_item['id']} ({stac_b_date}) | "
+              f"SZA={sza:.1f} VZA={vza:.1f}")
+    except Exception as exc:  # noqa: BLE001 - any STAC failure is recoverable
+        if not mgrs:
+            raise SystemExit(
+                f"STAC lookup failed ({exc}) and no --mgrs given; "
+                f"pass --mgrs to proceed"
+            ) from exc
+        print(f"WARNING: STAC lookup failed ({exc})")
+        print(f"         using nominal SZA={sza:.1f} VZA={vza:.1f} — angles "
+              f"feed the RTM calibration, so treat ppb as approximate")
     print("pixels come from the GCS L1C mirror, selected below")
 
     # ---- pixels from GCS L1C (TOA) ----------------------------------------
@@ -146,11 +172,23 @@ def main(argv=None) -> int:
         arr = vrt_window(href, args.lon, args.lat, args.half_km, RES_M)
         return float((~np.isfinite(arr)).mean())
 
-    def pick_covering(day, offsets, platform=None, max_nodata=0.02):
+    excl_start = excl_end = None
+    if args.exclude_background:
+        a, b = args.exclude_background.split(":")
+        excl_start, excl_end = date.fromisoformat(a), date.fromisoformat(b)
+
+    def excluded(d) -> bool:
+        return (excl_start is not None
+                and excl_start <= d <= excl_end)
+
+    def pick_covering(day, offsets, platform=None, max_nodata=0.02,
+                      honour_exclusion=False):
         """Nearest SAFE to `day` whose pixels actually cover the window."""
         best = (None, None, 1.0)
         for off in offsets:
             d = day + timedelta(days=off)
+            if honour_exclusion and excluded(d):
+                continue
             safes = gcs_day_safes(mgrs, d.strftime("%Y%m%d"))
             if platform is not None:
                 safes = [s for s in safes if s.startswith(platform)]
@@ -163,9 +201,17 @@ def main(argv=None) -> int:
         return best
 
     # mirror lags ~12 d and lacks S2C: search around the event window
-    t_date, t_safe, t_nd = pick_covering(event_date, [-1, -2, 0, -3, 1, -4, 2])
+    target_offsets = [0] if args.exact_date else [-1, -2, 0, -3, 1, -4, 2]
+    t_date, t_safe, t_nd = pick_covering(event_date, target_offsets)
     if t_safe is None:
-        raise SystemExit(f"no GCS L1C near {event_date}")
+        raise SystemExit(
+            f"no GCS L1C on {event_date}" if args.exact_date
+            else f"no GCS L1C near {event_date}"
+        )
+    if args.exact_date and t_date != event_date:
+        raise SystemExit(
+            f"--exact-date: nearest covering scene is {t_date}, not {event_date}"
+        )
     sat = "S2A" if t_safe.startswith("S2A") else "S2B"
 
     # ---- geometry (needed before any cloud mask can be built) -------------
@@ -243,12 +289,20 @@ def main(argv=None) -> int:
     b_date = b_safe = bc = b_ok = b_clear = None
     b_nd, b_cloud = 1.0, 1.0
     tried: list[str] = []
-    for lag in (10, 20, 30, 40, 50, 60, 70):
-        d, s, nd = pick_covering(t_date - timedelta(days=lag), [0], platform=sat)
+    # Same relative orbit means multiples of 10 days, either side of the
+    # target -- the frozen reference rules allow +/-12 d, and when a
+    # controlled-release window blocks the earlier passes the later ones are
+    # the only clean references available. Nearest in time first.
+    lags = [s * m for m in (10, 20, 30, 40, 50, 60, 70) for s in (1, -1)]
+    for lag in lags:
+        d, s, nd = pick_covering(t_date - timedelta(days=lag), [0], platform=sat,
+                                 honour_exclusion=True)
         if s is None or nd > 0.02:
-            tried.append(f"-{lag}d: no covering same-platform granule")
+            tried.append(f"{-lag:+d}d: no covering same-platform granule"
+                         + (" (in excluded window)"
+                            if excluded(t_date - timedelta(days=lag)) else ""))
             continue
-        print(f"trying background -{lag}d: {s[:44]}...")
+        print(f"trying background {-lag:+d}d: {s[:44]}...")
         cand_c, cand_ok = load_bands(s, quiet=True)
         cand_clear = clear_mask(cand_c) if not args.no_cloud_mask else None
         cloud_frac = 0.0 if cand_clear is None else float(1 - cand_clear.mean())
@@ -279,6 +333,16 @@ def main(argv=None) -> int:
         return GeoTensor(values=vals, transform=transform, crs=str(dst_crs),
                          fill_value_default=0,
                          attrs={"band_names": BANDS.copy()})
+
+    # The boundary where the 2026-08-25 scale bug lived: our arrays cross into
+    # someone else's model here, and every band-ratio operation downstream is
+    # invariant to a 10^4 error, so this check is the only thing that can
+    # catch it.
+    from plumechaser.data.scale import assert_dn_scale
+
+    for label, chans in (("target", tc), ("background", bc)):
+        v = assert_dn_scale(chans["B12"], f"{label} B12")
+        print(f"input scale {label}: DN ok (p99={v.p99:,.0f})")
 
     t_gt, b_gt = gt(tc), gt(bc)
     valid_np = t_ok & b_ok
@@ -446,7 +510,7 @@ def main(argv=None) -> int:
             f"engine: marss2l==0.2.10 MARS-S2L (LGPL)\n"
             f"pixels target: {t_safe}\npixels background: {b_safe}\n"
             f"pairing: {pairing} ({'same' if same_orbit else 'CROSS'}-orbit)\n"
-            f"angles from STAC: {t_item['id']}\n"
+            f"angles: {t_item['id'] if t_item else 'NOMINAL (STAC unavailable)'}\n"
             f"input scale: DN (TOA reflectance x 10000)\n"
             f"{cloud_note}\n"
             f"valid pixels: {valid_frac:.1%}\n"

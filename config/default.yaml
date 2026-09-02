@@ -64,6 +64,15 @@ gates:
   # apply to EVERY retrieval path, including production models (marss2l).
   sigma_col_ppb_limit: 80.0   # robust MAD sigma of the background column field
   mask_fraction_limit: 0.15   # plume mask as a fraction of the retrieval window
+  # ppb is NOT calibration-independent: the 2026-08-25 audit measured our
+  # simplified alpha as understating columns 2.5-6.3x vs the production RTM,
+  # so the same scene noise gave different verdicts on different chains. The
+  # gate's real content is a limit on fractional band-ratio noise. Anchor
+  # here; each retrieval converts to ppb with its own calibration slope.
+  #   0.0072 = 80 ppb * (alpha_b12 - alpha_b11) = 80 * 9.0e-5
+  # which reproduces exactly 80 ppb on the simplified chain, so the frozen
+  # operating point is unchanged. On the RTM scale it lands near 500 ppb.
+  sigma_log_ratio_limit: 0.0072
 
 ime:
   ueff_slope: 0.33            # Ueff = slope*U10 + intercept (Varon et al. 2021)
@@ -83,6 +92,20 @@ atlas:
   typical_plume_length_m:
     homogeneous_arid: 800
     heterogeneous: 1200
+  # Band-ratio noise measured on real campaigns, 1-sigma, MAD-based, over
+  # plume-free pixels. Calibration-independent by construction (see
+  # retrieve/calibration.py); convert to ppb per scene geometry with
+  # atlas.limits.sigma_col_ppb_from_log_ratio.
+  #
+  # PROVISIONAL: each entry is a SINGLE scene, not a climatology. The atlas
+  # needs per-basin x season distributions, which needs many more scenes than
+  # the anonymous mirror can supply. Do not present these as basin averages.
+  # Literature assumes 12-25 ppb over favourable surfaces; measured arid
+  # terrain is far worse, which is the atlas's own finding.
+  measured_sigma_log_ratio:
+    korpezhe_2026-08-03_cloudscreened_50d: 0.0069   # EVT-20260805-K26-MARSS2L-v6
+    korpezhe_2026-08-03_unscreened_50d:    0.0508   # EVT-20260805-K26-MARSS2L-v5
+    permian_2026-04-24_cloudscreened_30d:  0.0552   # EVT-20260427-P82-MARSS2L-v4
 
 evaluation:
   match_radius_km: 25

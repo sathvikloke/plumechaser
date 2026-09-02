@@ -106,11 +106,57 @@ Kill dates: Dec 15 autonomy · Feb 1 results tabulated · Mar 1 content freeze.
   fingerprint `b8db5cd2`). Power assessment on real data: champion-set
   n_eff = 57 → branch FULL (see docs/PRE_FREEZE_POWER_ASSESSMENT.md).
 
+* **2026-08-25 (pre-freeze) — flux audit, gate reparameterisation, RTM
+  calibration.** Full technical record in `docs/S2_REAL_DATA_FINDINGS.md`.
+
+  1. *Retraction.* The claim that the MARS-S2L production model detected
+     plumes at both catalog targets (scene_score .996/.995) is **withdrawn**.
+     Those runs fed the model 0–1 reflectance where it requires DN
+     (reflectance × 10⁴), which zeroed every radiance channel and left it
+     running on the scale-invariant band-ratio channel alone. Corrected:
+     Permian 2026-04-27 holds (0.994); Korpezhe 2026-08-05 is a
+     **no-detection** (0.213) because the only scene the anonymous mirror
+     carries near the event is 53% cloud + shadow. Korpezhe is therefore a
+     scene-unavailability result and routes to the observability atlas under
+     §7, not to the agreement study.
+
+  2. *Honesty-gate reparameterisation (§7 operating point UNCHANGED).* The
+     gate was written as `sigma_col > 80 ppb`. ppb is not a
+     calibration-independent unit: our simplified absorption coefficients
+     were measured to understate columns by 2.5–6.3× versus the production
+     RTM, so the same physical scene noise produced different verdicts
+     depending on which chain measured it. The gate is now anchored on the
+     quantity it actually constrains — fractional band-ratio noise —
+     `sigma_log_ratio_limit = 0.0072 = 80 ppb × (alpha_b12 − alpha_b11)`,
+     with each retrieval converting to ppb using its own calibration slope.
+     On the simplified chain this returns exactly 80 ppb by construction, so
+     **no pre-registered threshold changes value**; only its expression
+     becomes chain-independent. On the RTM scale the equivalent limit is
+     ≈500 ppb. Unit-tested in `tests/test_calibration.py`.
+
+  3. *RTM-derived calibration.* `retrieve/calibration.py` replaces the fixed
+     `mbmp.alpha_*_per_ppb` with a geometry-dependent cubic measured against
+     the production RTM LUT over SZA 10–70°, VZA 0–10°, both platforms
+     (`scripts/calibrate_alpha.py`, stored in `config/rtm_calibration.json`,
+     worst fit residual 1.4%). The correction is 2.5–6.3× and varies with
+     solar zenith, so it could not be absorbed into a single new constant.
+     This resolves the §10 accepted risk "simplified MBMP absorption
+     coefficients pending RTM-LUT". Fixed-alpha retrieval is retained as the
+     educational/fallback path.
+
+  4. *Scope.* No endpoint, match rule, power branch, bootstrap parameter, or
+     success-ladder criterion is altered by this addendum. Absolute fluxes
+     remain UNDER AUDIT and are withheld by the gates in every run to date.
+
 *(entries appear here only with date + reason)*
 
 ## 10. Accepted risks (permanent disclosure)
 
 Developer-annotator circularity (mitigated, not eliminated) · catalogs-as-
-truth limitation · TROPOMI physics floor (~8 t/h) · simplified MBMP
-absorption coefficients pending RTM-LUT · backbone layer partially
-self-referential (labelled 'instrument-and-pipeline').
+truth limitation · TROPOMI physics floor (~8 t/h) · ~~simplified MBMP
+absorption coefficients pending RTM-LUT~~ **resolved 2026-08-25, addendum 3**
+· backbone layer partially self-referential (labelled
+'instrument-and-pipeline') · **free-sensor scene availability**: the
+anonymous mirror lags ~12 d and carries no S2C, which forced 30- and 50-day
+background baselines and cost us the Korpezhe event entirely (added
+2026-08-25; this is an atlas finding as much as a limitation).

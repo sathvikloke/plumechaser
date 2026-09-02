@@ -45,13 +45,29 @@ execution. Total blocking time: ≈3 hours.
       WITHDRAWN (Permian holds at .994; Korpezhe is no-detection because
       the only mirrored scene is 53% cloud).
 
-## Now open (from the flux audit)
-- [ ] Re-derive the σ_col gate per retrieval scale BEFORE Nov 1 freeze —
-      80 ppb was calibrated on our simplified alpha, which is 4.4–6.3x more
-      sensitive than the production RTM LUT it is now applied to
-- [ ] Replace `mbmp.alpha_*` with an RTM-derived LUT (measured gap ~5x)
-- [ ] Controlled-release cross-check (Ehrenberg/Casa Grande AZ, Sherwin
-      et al. 2023 rates) to close absolute flux properly
+## Done 2026-08-25 (post-audit)
+- [x] σ_col gate re-derived scale-free: anchored on band-ratio noise
+      (`gates.sigma_log_ratio_limit = 0.0072`), which reproduces exactly
+      80 ppb on the simplified chain and ~500 ppb on the RTM scale. Frozen
+      operating point UNCHANGED — see ANALYSIS_PLAN §9 addendum.
+- [x] RTM calibration measured over 42 geometries: our alpha understates
+      columns **2.5–6.3x** (median 4.4x), driven by SZA. Stored in
+      `config/rtm_calibration.json`; `retrieve/calibration.py` consumes it.
+- [x] Controlled-release ground truth located and validated (28/28 SI
+      Table S8 cells match) → `config/controlled_release_truth.json`.
+      13 Sentinel-2 overpasses with metered rates, including **3 zero
+      controls** plus 14 no-release scenes usable as extra controls.
+- [x] Input-scale regression guard (`data/scale.py`) at the model boundary
+- [x] Replay dashboard no longer opens on a withdrawn bundle by default
+- [x] Withdrawn/diagnostic classification centralised in `report/status.py`
+
+## Now open
+- [ ] Finish the controlled-release campaign (zero controls first) and write
+      the artifact-floor number into S2_REAL_DATA_FINDINGS
+- [ ] Wire `retrieve/calibration.py` into `real_s2_demo.py` so our own chain
+      reports RTM-scale ppb (currently still fixed-alpha)
+- [ ] Per-basin × season σ climatology for the atlas — needs many more
+      scenes than the anonymous mirror can supply (blocked on credentials)
 - [ ] Still do not quote absolute t/h anywhere — gates withhold every run
 
 ## Then: phase gates

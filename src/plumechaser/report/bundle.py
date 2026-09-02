@@ -24,6 +24,11 @@ from pathlib import Path
 
 from plumechaser.config import config_sha256
 from plumechaser.report.dossier import DossierInput, render_dossier
+from plumechaser.report.status import STATUS_WITHDRAWN, bundle_status
+
+
+class WithdrawnBundleError(RuntimeError):
+    """Raised when a write would overwrite a retracted result."""
 
 
 def _git_commit() -> str:
@@ -45,9 +50,36 @@ def write_bundle(
     tropomi_png: bytes | None = None,
     mbmp_png: bytes | None = None,
     extra: dict | None = None,
+    allow_overwrite_withdrawn: bool = False,
 ) -> Path:
-    """Write <out_root>/<event_id>/ and return that directory."""
+    """Write <out_root>/<event_id>/ and return that directory.
+
+    Raises:
+        WithdrawnBundleError: if this event id names a retracted result.
+            Writing would rewrite provenance.json wholesale and silently strip
+            the markings that keep the withdrawn numbers out of figures and
+            the fair-floor dashboard. Re-running a corrected analysis should
+            use a new event id; the retracted bundle is the audit trail.
+    """
     bdir = Path(out_root) / dossier.event_id
+
+    if not allow_overwrite_withdrawn:
+        existing = bdir / "provenance.json"
+        prev: dict | None = None
+        if existing.exists():
+            try:
+                prev = json.loads(existing.read_text())
+            except (OSError, json.JSONDecodeError):
+                prev = None
+        if bundle_status(prev or {"event_id": dossier.event_id},
+                         bdir.name) == STATUS_WITHDRAWN:
+            raise WithdrawnBundleError(
+                f"{dossier.event_id} is a withdrawn result "
+                f"(docs/SUPERSEDED_RESULTS.md). Overwriting it would strip its "
+                f"markings. Use a new event id, or pass "
+                f"allow_overwrite_withdrawn=True if you really mean to."
+            )
+
     bdir.mkdir(parents=True, exist_ok=True)
 
     provenance = {
