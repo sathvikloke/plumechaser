@@ -387,11 +387,30 @@ mirror).
 | Casa Grande 2022-10-21 | yes | 111 t/h |
 | Casa Grande 2022-10-19 | yes (0.999) | 34 t/h |
 | Casa Grande 2022-10-11 | yes (0.989) | 18 t/h |
+| Casa Grande 2022-10-29 | yes (0.862) | 14.8 t/h |
 | Casa Grande 2022-10-14 | **no** (0.352) | — |
 | Casa Grande 2022-10-16 | **no** (0.008) | — |
 
-**False-detection rate 6/8 on scenes with no emission**, and false flux
-spanning **18–157 t/h**. This supersedes the earlier "~150 t/h" point
+**False-detection rate 7/9 on scenes with no emission**, and false flux
+spanning **14.8–157 t/h**.
+
+### The two sites fail differently, and that is why two gates are needed
+
+| Site | Mean in-mask ΔXCH₄ on metered zeros | Caught by |
+|---|---|---|
+| Ehrenberg | 8,667 ppb (4.8× ambient column) | both gates |
+| Casa Grande | 883–1,361 ppb (0.49–0.76× ambient) | **σ_col only** |
+
+The Casa Grande artifacts are moderate-amplitude and entirely plume-plausible
+in magnitude — they sit *below* the physical-plausibility ceiling and would be
+waved through by it. Only the σ_col noise gate rejects them. The Ehrenberg
+artifacts are the opposite: extreme amplitude, caught by either gate alone.
+
+Neither gate is sufficient by itself, and that is not redundancy — the two
+sites fail by different physical mechanisms (site infrastructure with an
+extreme band-ratio offset, versus broad low-amplitude surface change), so
+each gate is load-bearing at one of them. Any future simplification that
+drops one would silently reopen half the failure space. This supersedes the earlier "~150 t/h" point
 estimate, which came from the two largest of eight and was therefore the
 optimistic end of the wrong summary statistic. The honest statement is a
 distribution with a median near 120 t/h, and the two correct nulls matter:
